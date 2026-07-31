@@ -7,6 +7,7 @@ import { ensureWorkspaceForUser, getPrimaryWorkspace } from "@/lib/workspace";
 type AdapterPrismaClient = Parameters<typeof PrismaAdapter>[0];
 
 export const authConfig = {
+  debug: true,
   adapter: PrismaAdapter(prisma as unknown as AdapterPrismaClient),
   providers: [
     Resend({
