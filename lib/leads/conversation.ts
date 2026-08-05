@@ -1,6 +1,15 @@
 import { prisma } from "@/lib/db/client";
 
-// Helper kirim DM Graph API
+export interface QuestionItem {
+  id: string;
+  label: string;
+  isCollectAnswer: boolean;
+  variableKey: string;
+  type: "text" | "button";
+  options?: string[];
+}
+
+// Helper internal untuk mengirim DM via Instagram Graph API
 async function sendInstagramDM(
   recipientId: string,
   text: string,
@@ -37,14 +46,27 @@ async function sendInstagramDM(
   }
 }
 
-interface QuestionItem {
-  id: string;
-  label: string; // Teks pertanyaan, misal: "Berapa umur kamu?"
-  type: "text" | "button"; // Tipe balasan
-  options?: string[]; // Pilihan button jika type == "button"
+// Helper untuk mengirim pertanyaan/pesan berikutnya ke user
+async function sendQuestionStep(
+  senderId: string,
+  question: QuestionItem,
+  accessToken: string
+) {
+  const quickReplies =
+    question.type === "button" && question.options
+      ? question.options
+          .filter(Boolean)
+          .map((opt) => ({ title: opt, payload: opt }))
+      : undefined;
+
+  await sendInstagramDM(senderId, question.label, accessToken, quickReplies);
 }
 
-export async function handleIncomingDM(senderId: string, messageText: string, accessToken: string) {
+export async function handleIncomingDM(
+  senderId: string,
+  messageText: string,
+  accessToken: string
+) {
   // 1. Cari Instagram Account & Automation aktif
   const account = await prisma.instagramAccount.findFirst({
     where: { accessToken },
@@ -62,8 +84,8 @@ export async function handleIncomingDM(senderId: string, messageText: string, ac
   const questions = automation.questions as unknown as QuestionItem[];
   if (!Array.isArray(questions) || questions.length === 0) return;
 
-  // 2. Ambil/Buat record progres pengerjaan "GForm" user di DB
-  let lead = await prisma.leadResponse.findUnique({
+  // 2. Ambil / Buat record progres user
+  let lead = await (prisma as any).leadResponse.findUnique({
     where: {
       automationId_instagramUserId: {
         automationId: automation.id,
@@ -72,9 +94,9 @@ export async function handleIncomingDM(senderId: string, messageText: string, ac
     },
   });
 
-  // Jika user baru pertama kali / mengulang dari awal
+  // JIKA USER BARU / MEMULAI FLOW DARI AWAL
   if (!lead || lead.isCompleted) {
-    lead = await prisma.leadResponse.upsert({
+    lead = await (prisma as any).leadResponse.upsert({
       where: {
         automationId_instagramUserId: {
           automationId: automation.id,
@@ -90,53 +112,77 @@ export async function handleIncomingDM(senderId: string, messageText: string, ac
       },
     });
 
-    // Kirim Pertanyaan Pertama (Step 0)
-    const firstQ = questions[0];
-    const quickReplies = firstQ.type === "button" && firstQ.options
-      ? firstQ.options.map((opt) => ({ title: opt, payload: opt }))
-      : undefined;
+    let currentIndex = 0;
 
-    await sendInstagramDM(senderId, firstQ.label, accessToken, quickReplies);
+    // Flush semua pesan yang cuma "Informasi" (isCollectAnswer == false) berturut-turut
+    while (
+      currentIndex < questions.length &&
+      !questions[currentIndex].isCollectAnswer
+    ) {
+      await sendQuestionStep(senderId, questions[currentIndex], accessToken);
+      currentIndex++;
+    }
+
+    // Update step index terbaru di database
+    await (prisma as any).leadResponse.update({
+      where: { id: lead.id },
+      data: { currentStepIndex: currentIndex },
+    });
+
+    // Kirim pertanyaan pertama yang butuh jawaban (jika ada)
+    if (currentIndex < questions.length) {
+      await sendQuestionStep(senderId, questions[currentIndex], accessToken);
+    }
     return;
   }
 
-  // 3. Simpan jawaban dari pertanyaan sebelumnya
+  // JIKA USER MEMBALAS PERTANYAAN (FLOW BERJALAN)
   const currentAnswers = (lead.answers as Record<string, string>) || {};
-  const currentQuestion = questions[lead.currentStepIndex];
+  let stepIndex = lead.currentStepIndex;
+  const currentQuestion = questions[stepIndex];
 
-  if (currentQuestion) {
-    currentAnswers[currentQuestion.label] = messageText;
+  // 3. Simpan jawaban user berdasarkan variableKey (bukan label pertanyaan)
+  if (currentQuestion && currentQuestion.isCollectAnswer) {
+    const key = currentQuestion.variableKey || `field_${stepIndex + 1}`;
+    currentAnswers[key] = messageText;
   }
 
-  const nextIndex = lead.currentStepIndex + 1;
+  // Pindah ke step selanjutnya
+  stepIndex++;
 
-  // 4. Jika MASIH ADA pertanyaan berikutnya
-  if (nextIndex < questions.length) {
-    await prisma.leadResponse.update({
+  // 4. Lewati & kirim langsung pesan-pesan yang tipe "Informasi Saja"
+  while (
+    stepIndex < questions.length &&
+    !questions[stepIndex].isCollectAnswer
+  ) {
+    await sendQuestionStep(senderId, questions[stepIndex], accessToken);
+    stepIndex++;
+  }
+
+  // 5. Cek apakah masih ada pertanyaan lanjutan
+  if (stepIndex < questions.length) {
+    await (prisma as any).leadResponse.update({
       where: { id: lead.id },
       data: {
-        currentStepIndex: nextIndex,
+        currentStepIndex: stepIndex,
         answers: currentAnswers,
       },
     });
 
-    const nextQ = questions[nextIndex];
-    const quickReplies = nextQ.type === "button" && nextQ.options
-      ? nextQ.options.map((opt) => ({ title: opt, payload: opt }))
-      : undefined;
-
-    await sendInstagramDM(senderId, nextQ.label, accessToken, quickReplies);
+    // Kirim Pertanyaan Berikutnya yang Butuh Jawaban
+    await sendQuestionStep(senderId, questions[stepIndex], accessToken);
   } else {
-    // 5. Jika SEMUA Pertanyaan Sudah Terjawab (COMPLETED)
-    await prisma.leadResponse.update({
+    // 6. SEMUA LANGKAH SELESAI (COMPLETED)
+    await (prisma as any).leadResponse.update({
       where: { id: lead.id },
       data: {
+        currentStepIndex: stepIndex,
         isCompleted: true,
         answers: currentAnswers,
       },
     });
 
-    // 🚀 FIRING HASIL DATA DINAMIS KE WEBHOOK (GOOGLE SHEETS / INTEGRATELY)
+    // 🚀 TEMBAK HASIL JSON BERSIH KE WEBHOOK (GOOGLE SHEETS / INTEGRATELY)
     const webhookUrl = automation.webhookDestinationUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
     if (webhookUrl) {
       fetch(webhookUrl, {
@@ -145,7 +191,7 @@ export async function handleIncomingDM(senderId: string, messageText: string, ac
         body: JSON.stringify({
           instagramUserId: senderId,
           submittedAt: new Date().toISOString(),
-          answers: currentAnswers, // Format JSON otomatis mengikuti pertanyaan di UI!
+          answers: currentAnswers, // Output berupa key-value sesuai variableKey yang di-set
         }),
       }).catch((err) => console.error("Error sending dynamic lead:", err));
     }
