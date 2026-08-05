@@ -344,17 +344,6 @@ export default function CampaignDetailPage() {
             openingDmEnabled={campaign.openingDmEnabled}
             openingDmMessage={campaign.openingDmMessage ?? ""}
             openingDmButtonLabel={campaign.openingDmButtonLabel ?? ""}
-            revealMessage={campaign.dmMessage}
-            hasLink={hasLink}
-            linkButtonLabel={campaign.linkButtonLabel ?? "Open link"}
-            linkUrl={
-              campaign.trackedLinks?.[0]?.trackedUrl ??
-              campaign.trackedLinks?.[0]?.destinationUrl
-            }
-            hasSecondLink={hasSecondLink}
-            secondLinkButtonLabel={
-              campaign.trackedLinks?.[1]?.label ?? "Open link"
-            }
             requireFollow={campaign.requireFollow}
             followPromptMessage={campaign.followPromptMessage ?? ""}
             followPromptButtonLabel={
@@ -363,6 +352,16 @@ export default function CampaignDetailPage() {
             followUpEnabled={campaign.followUpEnabled ?? false}
             followUpMessage={campaign.followUpMessage ?? ""}
             followUpDelayMinutes={campaign.followUpDelayMinutes ?? 0}
+            questions={(campaign as any).questions ?? [
+              {
+                id: "1",
+                label: campaign.dmMessage || "Lead Form DM",
+                isCollectAnswer: true,
+                variableKey: "answer",
+                type: "text",
+                options: [],
+              }
+            ]}
           />
           </div>
         )}
