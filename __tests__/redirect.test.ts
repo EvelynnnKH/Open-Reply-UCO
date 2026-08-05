@@ -19,6 +19,12 @@ import { GET } from "../app/r/[slug]/route";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Set env dummy & mock global fetch supaya saat testing tidak benar-benar mengirim HTTP request
+  process.env.GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/test/exec";
+  global.fetch = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({ status: "success" }),
+  } as Response);
 });
 
 describe("tracked link redirect route", () => {
@@ -61,9 +67,19 @@ describe("tracked link redirect route", () => {
         referrer: "https://instagram.com/",
       }),
     });
+
+    // Memastikan fetch ke Google Sheets ter panggil dengan payload yang sesuai
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://script.google.com/macros/s/test/exec",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: expect.stringContaining('"slug":"abc123"'),
+      })
+    );
   });
 
-  it("redirects unknown slugs to the homepage without logging a click", async () => {
+  it("redirects unknown slugs to the homepage without logging a click or calling webhook", async () => {
     mockPrisma.trackedLink.findUnique.mockResolvedValue(null);
 
     const response = await GET(
@@ -76,5 +92,6 @@ describe("tracked link redirect route", () => {
     expect(response.status).toBe(302);
     expect(response.headers.get("location")).toBe("https://manychat-alternative.com/");
     expect(mockPrisma.linkClick.create).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

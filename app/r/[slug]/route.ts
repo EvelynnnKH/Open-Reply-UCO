@@ -39,5 +39,24 @@ export async function GET(request: NextRequest, { params }: RedirectRouteProps) 
     },
   });
 
+  // Kirim data leads ke Google Sheets / Webhook secara asynchronous (non-blocking)
+  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  if (webhookUrl) {
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        slug,
+        trackedLinkId: trackedLink.id,
+        workspaceId: trackedLink.workspaceId,
+        automationId: trackedLink.automationId,
+        destinationUrl: trackedLink.destinationUrl,
+        clickedAt: new Date().toISOString(),
+        userAgent: request.headers.get("user-agent"),
+        referrer: request.headers.get("referer"),
+      }),
+    }).catch((err) => console.error("Failed to send lead to Google Sheets:", err));
+  }
+
   return NextResponse.redirect(trackedLink.destinationUrl, { status: 302 });
-}
+  }
