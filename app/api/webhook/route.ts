@@ -9,6 +9,8 @@ import {
 } from "@/lib/meta/webhook";
 import { POSTBACK_JOB_NAME } from "@/lib/queue/client";
 import { Prisma } from "@/app/generated/prisma/client";
+import { handleIncomingDM } from "@/lib/leads/conversation";
+
 
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 
@@ -76,6 +78,28 @@ export async function POST(request: NextRequest) {
       status: "PENDING",
     },
   });
+
+  const entries = (payload as any)?.entry || [];
+    for (const entry of entries) {
+      const messagings = entry?.messaging || [];
+      for (const messagingEvent of messagings) {
+        const senderId = messagingEvent?.sender?.id;
+        const recipientId = messagingEvent?.recipient?.id;
+        const messageText = messagingEvent?.message?.text || messagingEvent?.postback?.payload;
+        const isEcho = messagingEvent?.message?.is_echo;
+
+        if (senderId && recipientId && messageText && !isEcho) {
+          const account = await prisma.instagramAccount.findUnique({
+            where: { instagramId: recipientId },
+            select: { accessToken: true },
+          });
+
+          if (account?.accessToken) {
+            await handleIncomingDM(senderId, messageText, account.accessToken);
+          }
+        }
+      }
+    }
 
   try {
     const commentEvents = parseCommentEvents(
