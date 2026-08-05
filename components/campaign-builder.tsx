@@ -184,7 +184,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         isCollectAnswer: true,
         variableKey: `field_${prev.length + 1}`,
         type: "text",
-        options: [""],
+        options: [],
       },
     ]);
   };
