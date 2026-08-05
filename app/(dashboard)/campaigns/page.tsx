@@ -199,7 +199,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
 
     const payload = {
       name,
-      goal,
+      goal: goal.trim() === "" ? null : goal,
       instagramAccountId: selectedAccountId,
       matchAnyWord,
       keywords: kwArray,

@@ -27,7 +27,7 @@ const questionItemSchema = z.object({
 const createAutomationSchema = z
   .object({
     name: z.string().min(1).max(100),
-    goal: z.string().min(1).max(120).optional().nullable(),
+    goal: z.string().max(120).optional().nullable().or(z.literal("")),
     instagramAccountId: z.string().min(1).optional().nullable(),
     postId: z.string().min(1).optional().nullable(),
     postUrl: z.string().url().optional().nullable(),
@@ -94,7 +94,7 @@ const createAutomationSchema = z
 
 const updateAutomationSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  goal: z.string().min(1).max(120).optional().nullable(),
+  goal: z.string().max(120).optional().nullable().or(z.literal("")),
   postId: z.string().min(1).optional().nullable(),
   postUrl: z.string().url().optional().nullable(),
   pendingNextReel: z.boolean().optional(),
