@@ -2,15 +2,9 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-/**
- * Campaign Preview
- *
- * Fixed-size iPhone 17 Pro mockup that simulates how a campaign appears on
- * Instagram across three screens (Post, Comments, DM). Every screen renders in
- * the identical frame so switching tabs never resizes the phone.
- */
-
 export type PreviewTab = "post" | "comments" | "dm";
+
+import type { QuestionItem } from "@/components/campaign-builder";
 
 interface CampaignPreviewProps {
   tab: PreviewTab;
@@ -25,18 +19,13 @@ interface CampaignPreviewProps {
   openingDmEnabled: boolean;
   openingDmMessage: string;
   openingDmButtonLabel: string;
-  revealMessage: string;
-  hasLink: boolean;
-  linkButtonLabel: string;
-  linkUrl?: string;
-  hasSecondLink: boolean;
-  secondLinkButtonLabel: string;
   requireFollow: boolean;
   followPromptMessage: string;
   followPromptButtonLabel: string;
   followUpEnabled: boolean;
   followUpMessage: string;
   followUpDelayMinutes?: number;
+  questions: QuestionItem[];
 }
 
 const SAMPLE_USER = "username";
@@ -82,54 +71,15 @@ const Ico = {
   camera: (c = "") => (
     <svg viewBox="0 0 24 24" className={c} {...S}><path d="M3 8a2 2 0 012-2h1.2a2 2 0 001.7-1l.5-.8a2 2 0 011.7-1h3.8a2 2 0 011.7 1l.5.8a2 2 0 001.7 1H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><circle cx="12" cy="13" r="3.2" /></svg>
   ),
-  link: (c = "") => (
-    <svg viewBox="0 0 24 24" className={c} {...S}><path d="M10.5 13.5a4 4 0 005.7 0l2.3-2.3a4 4 0 00-5.7-5.7L11.5 6.8" /><path d="M13.5 10.5a4 4 0 00-5.7 0l-2.3 2.3a4 4 0 005.7 5.7l1.3-1.3" /></svg>
-  ),
 };
 
 /* ----------------------------- helpers ----------------------------- */
 
-function renderMessage(text: string, hasLink: boolean, linkUrl?: string) {
-  const withName = text.replace(/\{username\}/g, SAMPLE_USER);
-  return withName.split(/(\{link\})/g).map((part, i) =>
-    part === "{link}" ? (
-      <span
-        key={i}
-        className={
-          linkUrl || hasLink
-            ? "text-sky-400 underline break-all"
-            : "text-zinc-500 italic"
-        }
-      >
-        {/* Show the actual link being sent, not a placeholder token. */}
-        {linkUrl || (hasLink ? "your link" : "{link}")}
-      </span>
-    ) : (
-      <span key={i}>{part}</span>
-    )
-  );
-}
-
-function Avatar({
-  url,
-  size = 28,
-}: {
-  url: string | null;
-  size?: number;
-}) {
+function Avatar({ url, size = 28 }: { url: string | null; size?: number }) {
   return url ? (
-    <img
-      src={url}
-      alt=""
-      referrerPolicy="no-referrer"
-      className="shrink-0 rounded-full object-cover"
-      style={{ width: size, height: size }}
-    />
+    <img src={url} alt="" referrerPolicy="no-referrer" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />
   ) : (
-    <span
-      className="shrink-0 rounded-full bg-zinc-600"
-      style={{ width: size, height: size }}
-    />
+    <span className="shrink-0 rounded-full bg-zinc-600" style={{ width: size, height: size }} />
   );
 }
 
@@ -150,19 +100,14 @@ function Phone({ children }: { children: React.ReactNode }) {
   const btn = "absolute w-[3px] rounded-sm bg-gradient-to-r from-zinc-500 to-zinc-700";
   return (
     <div className="relative w-[300px]">
-      {/* Left side buttons: action, volume up, volume down */}
       <span className={`${btn} -left-[2px] top-[96px] h-7`} />
       <span className={`${btn} -left-[2px] top-[140px] h-12`} />
       <span className={`${btn} -left-[2px] top-[200px] h-12`} />
-      {/* Right side buttons: side/power, camera control */}
       <span className={`${btn} -right-[2px] left-auto top-[150px] h-20 bg-gradient-to-l`} />
       <span className={`${btn} -right-[2px] left-auto top-[250px] h-9 bg-gradient-to-l`} />
-
-      {/* Titanium frame → black bezel → screen */}
       <div className="relative rounded-[3rem] bg-gradient-to-br from-zinc-500 via-zinc-700 to-zinc-600 p-[3px] shadow-2xl">
         <div className="rounded-[2.85rem] bg-black p-[9px]">
           <div className="relative h-[640px] overflow-hidden rounded-[2.3rem] bg-black">
-            {/* Dynamic Island */}
             <div className="absolute left-1/2 top-2 z-20 h-6 w-24 -translate-x-1/2 rounded-full bg-black" />
             {children}
           </div>
@@ -174,17 +119,7 @@ function Phone({ children }: { children: React.ReactNode }) {
 
 /* ----------------------------- screens ----------------------------- */
 
-function PostScreen({
-  username,
-  avatarUrl,
-  postThumb,
-  caption,
-}: {
-  username: string;
-  avatarUrl: string | null;
-  postThumb: string | null;
-  caption: string;
-}) {
+function PostScreen({ username, avatarUrl, postThumb, caption }: { username: string; avatarUrl: string | null; postThumb: string | null; caption: string }) {
   return (
     <div className="flex h-full flex-col text-white">
       <StatusBar />
@@ -202,9 +137,7 @@ function PostScreen({
         <span className="ml-auto tracking-widest">···</span>
       </div>
       <div className="min-h-0 flex-1 bg-zinc-800">
-        {postThumb && (
-          <img src={postThumb} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
-        )}
+        {postThumb && <img src={postThumb} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />}
       </div>
       <div className="flex shrink-0 items-center gap-4 px-3 py-2.5">
         <span className="flex items-center gap-1">{Ico.heart("h-6 w-6")}<span className="text-sm">59</span></span>
@@ -214,10 +147,7 @@ function PostScreen({
       </div>
       <div className="shrink-0 px-3 text-xs leading-relaxed">
         <p className="line-clamp-2">
-          <span className="font-semibold">{username}</span>{" "}
-          <span className="text-zinc-200">
-            {caption || "Applications close rly soon!!"}
-          </span>
+          <span className="font-semibold">{username}</span> <span className="text-zinc-200">{caption || "Applications close rly soon!!"}</span>
         </p>
         <p className="mt-1 text-zinc-500">View all comments</p>
       </div>
@@ -232,19 +162,7 @@ function PostScreen({
   );
 }
 
-function CommentsScreen({
-  username,
-  avatarUrl,
-  sampleComment,
-  publicReplyEnabled,
-  publicReplyMessage,
-}: {
-  username: string;
-  avatarUrl: string | null;
-  sampleComment: string;
-  publicReplyEnabled: boolean;
-  publicReplyMessage: string;
-}) {
+function CommentsScreen({ username, avatarUrl, sampleComment, publicReplyEnabled, publicReplyMessage }: { username: string; avatarUrl: string | null; sampleComment: string; publicReplyEnabled: boolean; publicReplyMessage: string }) {
   const reactions = ["❤️", "🙌", "🔥", "👏", "😢", "😍", "😮", "😂"];
   return (
     <div className="flex h-full flex-col text-white">
@@ -253,46 +171,33 @@ function CommentsScreen({
       <div className="flex flex-1 flex-col rounded-t-2xl bg-[#0b0b0b] px-4 pt-3">
         <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-zinc-600" />
         <p className="text-center text-sm font-semibold">Comments</p>
-
         <div className="mt-5 flex gap-3">
           <Avatar url={null} size={32} />
           <div className="flex-1">
-            <p className="text-xs">
-              <span className="font-semibold">{SAMPLE_USER}</span>{" "}
-              <span className="text-zinc-500">Now</span>
-            </p>
+            <p className="text-xs"><span className="font-semibold">{SAMPLE_USER}</span> <span className="text-zinc-500">Now</span></p>
             <p className="text-sm">{sampleComment || "yc"}</p>
             <p className="mt-0.5 text-xs text-zinc-500">Reply</p>
           </div>
           <span className="mt-1">{Ico.heart("h-3.5 w-3.5 text-zinc-500")}</span>
         </div>
-
         {publicReplyEnabled && (
           <div className="mt-4 flex gap-3 pl-10">
             <Avatar url={avatarUrl} size={28} />
             <div className="flex-1">
-              <p className="text-xs">
-                <span className="font-semibold">{username}</span>{" "}
-                <span className="text-zinc-500">Now</span>
-              </p>
+              <p className="text-xs"><span className="font-semibold">{username}</span> <span className="text-zinc-500">Now</span></p>
               <p className="text-sm">{publicReplyMessage || "Sent you a DM! 📩"}</p>
               <p className="mt-0.5 text-xs text-zinc-500">Reply</p>
             </div>
             <span className="mt-1">{Ico.heart("h-3.5 w-3.5 text-zinc-500")}</span>
           </div>
         )}
-
         <div className="mt-auto">
           <div className="flex items-center justify-between px-1 pb-2 text-lg">
-            {reactions.map((r) => (
-              <span key={r}>{r}</span>
-            ))}
+            {reactions.map((r) => <span key={r}>{r}</span>)}
           </div>
           <div className="mb-3 flex items-center gap-2">
             <Avatar url={avatarUrl} size={28} />
-            <div className="flex-1 rounded-full bg-zinc-800 px-3 py-2 text-xs text-zinc-500">
-              Add a comment for {username}…
-            </div>
+            <div className="flex-1 rounded-full bg-zinc-800 px-3 py-2 text-xs text-zinc-500">Add a comment for {username}…</div>
           </div>
         </div>
       </div>
@@ -306,41 +211,31 @@ function DmScreen({
   openingDmEnabled,
   openingDmMessage,
   openingDmButtonLabel,
-  revealMessage,
-  hasLink,
-  linkButtonLabel,
-  hasSecondLink,
-  secondLinkButtonLabel,
   requireFollow,
   followPromptMessage,
   followPromptButtonLabel,
   followUpEnabled,
   followUpMessage,
   followUpDelayMinutes = 0,
-  linkUrl,
+  questions,
 }: {
   username: string;
   avatarUrl: string | null;
   openingDmEnabled: boolean;
   openingDmMessage: string;
   openingDmButtonLabel: string;
-  revealMessage: string;
-  hasLink: boolean;
-  linkButtonLabel: string;
-  linkUrl?: string;
-  hasSecondLink: boolean;
-  secondLinkButtonLabel: string;
   requireFollow: boolean;
   followPromptMessage: string;
   followPromptButtonLabel: string;
   followUpEnabled: boolean;
   followUpMessage: string;
   followUpDelayMinutes?: number;
+  questions: QuestionItem[];
 }) {
   return (
-    <div className="flex h-full flex-col text-white">
+    <div className="flex h-full flex-col text-white overflow-y-auto">
       <StatusBar />
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800">
         <span className="w-4">{Ico.back("h-5 w-5")}</span>
         <Avatar url={avatarUrl} size={30} />
         <span className="text-sm font-semibold">{username}</span>
@@ -363,20 +258,18 @@ function DmScreen({
               </div>
             </div>
             <div className="flex justify-end">
-              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
-                {openingDmButtonLabel || "Button label"}
-              </div>
+              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">{openingDmButtonLabel || "Button label"}</div>
             </div>
           </>
         )}
+
         {requireFollow && (
           <>
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
               <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
                 <p className="whitespace-pre-wrap px-3 py-2 text-sm">
-                  {followPromptMessage ||
-                    "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over"}
+                  {followPromptMessage || "quick favor before i send your link. follow first!"}
                 </p>
                 <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
                   {followPromptButtonLabel || "i'm following"}
@@ -384,62 +277,50 @@ function DmScreen({
               </div>
             </div>
             <div className="flex justify-end">
-              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">
-                {followPromptButtonLabel || "i'm following"}
-              </div>
+              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-sm">{followPromptButtonLabel || "i'm following"}</div>
             </div>
           </>
         )}
-        {(() => {
-          const resolved = revealMessage.replace(/\{username\}/g, SAMPLE_USER);
-          const hasToken = resolved.includes("{link}");
-          const showCard = hasLink && hasToken;
-          const bodyText = showCard
-            ? resolved.replace(/\s*\{link\}\s*/g, " ").trim()
-            : resolved;
-          return (
+
+        {/* Render Form Questions dynamically */}
+        {questions.map((q, idx) => (
+          <div key={q.id || idx} className="space-y-2">
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
-              <div className="max-w-[80%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800">
-                {(!showCard || bodyText) && (
-                  <p className="whitespace-pre-wrap px-3 py-2 text-sm">
-                    {!revealMessage
-                      ? "Write a message"
-                      : showCard
-                        ? bodyText
-                        : renderMessage(revealMessage, hasLink, linkUrl)}
-                  </p>
-                )}
-                {showCard && (
-                  <>
-                    <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                      {linkButtonLabel || "Open link"}
-                    </div>
-                    {hasSecondLink && (
-                      <div className="mx-1.5 mb-1.5 rounded-xl bg-zinc-700 px-4 py-1.5 text-center text-sm font-medium text-white">
-                        {secondLinkButtonLabel || "Open link"}
+              <div className="max-w-[85%] overflow-hidden rounded-2xl rounded-bl-md bg-zinc-800 p-3 space-y-2">
+                <p className="whitespace-pre-wrap text-sm">{q.label || `Pertanyaan #${idx + 1}`}</p>
+                
+                {q.type === "button" && q.options.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    {q.options.map((opt, oIdx) => (
+                      <div key={oIdx} className="rounded-xl bg-zinc-700 px-3 py-1.5 text-center text-xs font-medium text-white">
+                        {opt || `Pilihan ${oIdx + 1}`}
                       </div>
-                    )}
-                  </>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
-          );
-        })()}
+
+            {/* Simulasi jawaban user */}
+            <div className="flex justify-end">
+              <div className="rounded-2xl rounded-br-md bg-accent px-3 py-2 text-xs text-white">
+                {q.type === "button" && q.options[0] ? q.options[0] : `Contoh Jawaban ${q.variableKey || "user"}`}
+              </div>
+            </div>
+          </div>
+        ))}
+
         {followUpEnabled && (
           <>
             {followUpDelayMinutes > 0 && (
-              <p className="py-1 text-center text-[11px] text-zinc-500">
-                {followUpDelayMinutes} min later
-              </p>
+              <p className="py-1 text-center text-[11px] text-zinc-500">{followUpDelayMinutes} min later</p>
             )}
             <div className="flex items-end gap-2">
               <Avatar url={avatarUrl} size={24} />
               <div className="max-w-[80%] rounded-2xl rounded-bl-md bg-zinc-800 px-3 py-2">
                 <p className="whitespace-pre-wrap text-sm">
-                  {followUpMessage.trim()
-                    ? followUpMessage.replace(/\{username\}/g, SAMPLE_USER)
-                    : "Btw just wanted to say thanks for following me, I appreciate the support 🙌"}
+                  {followUpMessage.trim() ? followUpMessage.replace(/\{username\}/g, SAMPLE_USER) : "Btw thanks for following!"}
                 </p>
               </div>
             </div>
@@ -447,7 +328,7 @@ function DmScreen({
         )}
       </div>
 
-      <div className="flex items-center gap-2 px-3 py-3">
+      <div className="flex items-center gap-2 px-3 py-3 border-t border-zinc-800 bg-black">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-white">
           {Ico.camera("h-4 w-4")}
         </span>
@@ -494,18 +375,13 @@ export default function CampaignPreview(props: CampaignPreviewProps) {
             openingDmEnabled={props.openingDmEnabled}
             openingDmMessage={props.openingDmMessage}
             openingDmButtonLabel={props.openingDmButtonLabel}
-            revealMessage={props.revealMessage}
-            hasLink={props.hasLink}
-            linkButtonLabel={props.linkButtonLabel}
-            hasSecondLink={props.hasSecondLink}
-            secondLinkButtonLabel={props.secondLinkButtonLabel}
             requireFollow={props.requireFollow}
             followPromptMessage={props.followPromptMessage}
             followPromptButtonLabel={props.followPromptButtonLabel}
             followUpEnabled={props.followUpEnabled}
             followUpMessage={props.followUpMessage}
             followUpDelayMinutes={props.followUpDelayMinutes}
-            linkUrl={props.linkUrl}
+            questions={props.questions}
           />
         )}
       </Phone>
