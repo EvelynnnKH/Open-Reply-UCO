@@ -207,10 +207,33 @@ model Automation {
   dmLogs           DmLog[]
   trackedLinks     TrackedLink[]
   linkClicks       LinkClick[]
+  
 
   @@index([workspaceId])
   @@index([instagramAccountId])
   @@index([postId])
+
+  //tambahan
+  isLeadFormEnabled     Boolean  @default(false)
+  questions             Json?    // Menyimpan array pertanyaan custom, contoh: ["Nama Lengkap?", "Jurusan?", "No WhatsApp?"]
+  webhookDestinationUrl String?  // Webhook tujuan untuk kirim hasil (contoh: Integrately / Sheets)
+  
+  leads                 LeadResponse[]
+}
+
+model LeadResponse {
+  id               String   @id @default(cuid())
+  automationId     String
+  instagramUserId String
+  answers          Json     // Menyimpan jawaban user { "Nama Lengkap?": "Evelyn", "Jurusan?": "Informatika" }
+  isCompleted      Boolean  @default(false)
+  currentStepIndex Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  
+  @@unique([automationId, instagramUserId])
 }
 
 model DmLog {
@@ -394,3 +417,4 @@ model LeadConversation {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+

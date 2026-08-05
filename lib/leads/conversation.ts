@@ -18,7 +18,7 @@ async function sendInstagramDM(
   }
 
   const baseUrl = "https://graph.facebook.com/v19.0";
-  
+
   const response = await fetch(`${baseUrl}/me/messages`, {
     method: "POST",
     headers: {
@@ -38,10 +38,38 @@ async function sendInstagramDM(
 }
 
 export async function handleIncomingDM(senderId: string, messageText: string, accessToken: string) {
+  // 1. Ambil automation aktif beserta konfigurasi pertanyaan dinamisnya
+  const account = await prisma.instagramAccount.findFirst({
+    where: { accessToken },
+    select: { id: true },
+  });
+
+  if (!account) return;
+
+  const automation = await prisma.automation.findFirst({
+    where: { instagramAccountId: account.id, isActive: true },
+  });
+
+  // Urutan pertanyaan dinamis (bisa disesuaikan / diambil dari DB nanti)
+  const questions = [
+    { key: "fullName", text: "Boleh diinfokan Nama Lengkap Kakak ?" },
+    {
+      key: "major",
+      text: "Kakak tertarik dengan jurusan apa?",
+      options: [
+        { title: "S1 Informatika", payload: "S1 Informatika" },
+        { title: "S1 Bisnis", payload: "S1 Bisnis" },
+        { title: "S1 Desain", payload: "S1 Desain" },
+      ],
+    },
+    { key: "phoneNumber", text: "Apakah ada nomor WhatsApp yang bisa dihubungi?\n\nTim Admisi kami siap memberikan penjelasan lebih detail." },
+  ];
+
   let conv = await prisma.leadConversation.findUnique({
     where: { instagramUserId: senderId },
   });
 
+  // 2. Jika user baru mulai / reset flow
   if (!conv || conv.step === "COMPLETED") {
     await prisma.leadConversation.upsert({
       where: { instagramUserId: senderId },
@@ -49,14 +77,12 @@ export async function handleIncomingDM(senderId: string, messageText: string, ac
       create: { instagramUserId: senderId, step: "AWAITING_NAME" },
     });
 
-    await sendInstagramDM(
-      senderId, 
-      "Terima kasih sudah tertarik dengan UC Online 👏\n\nBoleh diinfokan Nama Lengkap Kakak?",
-      accessToken
-    );
+    // Kirim Pertanyaan Pertama
+    await sendInstagramDM(senderId, questions[0].text, accessToken);
     return;
   }
 
+  // 3. Step 1 Jawab (Nama) -> Tanya Jurusan (Quick Replies)
   if (conv.step === "AWAITING_NAME") {
     await prisma.leadConversation.update({
       where: { instagramUserId: senderId },
@@ -64,32 +90,26 @@ export async function handleIncomingDM(senderId: string, messageText: string, ac
     });
 
     await sendInstagramDM(
-      senderId, 
-      "Kakak tertarik dengan jurusan apa?", 
+      senderId,
+      questions[1].text,
       accessToken,
-      [
-        { title: "S1 Informatika", payload: "S1 Informatika" },
-        { title: "S1 Bisnis", payload: "S1 Bisnis" },
-        { title: "S1 Desain", payload: "S1 Desain" },
-      ]
+      questions[1].options
     );
     return;
   }
 
+  // 4. Step 2 Jawab (Jurusan) -> Tanya No WA
   if (conv.step === "AWAITING_MAJOR") {
     await prisma.leadConversation.update({
       where: { instagramUserId: senderId },
       data: { major: messageText, step: "AWAITING_PHONE" },
     });
 
-    await sendInstagramDM(
-      senderId, 
-      "Apakah ada nomor WhatsApp yang bisa dihubungi?\n\nTim Admisi kami siap memberikan penjelasan lebih detail.",
-      accessToken
-    );
+    await sendInstagramDM(senderId, questions[2].text, accessToken);
     return;
   }
 
+  // 5. Step 3 Jawab (No WA) -> Oper Data & Selesai
   if (conv.step === "AWAITING_PHONE") {
     const updatedConv = await prisma.leadConversation.update({
       where: { instagramUserId: senderId },
