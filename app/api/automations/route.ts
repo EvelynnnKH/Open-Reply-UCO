@@ -15,6 +15,15 @@ import {
 // immediately), so never cache it at the route or CDN layer.
 export const dynamic = "force-dynamic";
 
+const questionItemSchema = z.object({
+  id: z.string(),
+  label: z.string().min(1, "Label pertanyaan tidak boleh kosong"),
+  isCollectAnswer: z.boolean().default(true),
+  variableKey: z.string().default("field"),
+  type: z.enum(["text", "button"]),
+  options: z.array(z.string()).optional(),
+});
+
 const createAutomationSchema = z
   .object({
     name: z.string().min(1).max(100),
@@ -23,10 +32,14 @@ const createAutomationSchema = z
     postId: z.string().min(1).optional().nullable(),
     postUrl: z.string().url().optional().nullable(),
     pendingNextReel: z.boolean().optional().default(false),
-    matchAnyPost: z.boolean().optional().default(false),
+    matchAnyPost: z.boolean().optional().default(true),
     keywords: z.array(z.string().min(1).max(50)).max(10).optional().default([]),
     matchAnyWord: z.boolean().optional().default(false),
     dmMessage: z.string().min(1).max(1000),
+
+    isLeadFormEnabled: z.boolean().optional().default(true),
+    questions: z.array(questionItemSchema).optional().default([]),
+
     openingDmEnabled: z.boolean().optional().default(false),
     openingDmMessage: z.string().max(1000).optional().nullable(),
     openingDmButtonLabel: z.string().max(64).optional().nullable(),
@@ -89,6 +102,10 @@ const updateAutomationSchema = z.object({
   keywords: z.array(z.string().min(1).max(50)).max(10).optional(),
   matchAnyWord: z.boolean().optional(),
   dmMessage: z.string().min(1).max(1000).optional(),
+
+  isLeadFormEnabled: z.boolean().optional(),
+  questions: z.array(questionItemSchema).optional(),
+
   openingDmEnabled: z.boolean().optional(),
   openingDmMessage: z.string().max(1000).optional().nullable(),
   openingDmButtonLabel: z.string().max(64).optional().nullable(),
@@ -392,7 +409,11 @@ export async function POST(request: NextRequest) {
       matchAnyPost,
       keywords: matchAnyWord ? [] : parsed.data.keywords,
       matchAnyWord,
-      dmMessage: parsed.data.dmMessage,
+      dmMessage: parsed.data.dmMessage || "Lead Form DM",
+
+      isLeadFormEnabled: parsed.data.isLeadFormEnabled,
+      questions: parsed.data.questions,
+
       openingDmEnabled,
       openingDmMessage: openingDmEnabled
         ? parsed.data.openingDmMessage || null
