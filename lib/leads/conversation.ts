@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 
-// Helper internal untuk mengirim DM ke Instagram Graph API
+// Helper kirim DM Graph API
 async function sendInstagramDM(
   recipientId: string,
   text: string,
@@ -37,8 +37,15 @@ async function sendInstagramDM(
   }
 }
 
+interface QuestionItem {
+  id: string;
+  label: string; // Teks pertanyaan, misal: "Berapa umur kamu?"
+  type: "text" | "button"; // Tipe balasan
+  options?: string[]; // Pilihan button jika type == "button"
+}
+
 export async function handleIncomingDM(senderId: string, messageText: string, accessToken: string) {
-  // 1. Ambil automation aktif beserta konfigurasi pertanyaan dinamisnya
+  // 1. Cari Instagram Account & Automation aktif
   const account = await prisma.instagramAccount.findFirst({
     where: { accessToken },
     select: { id: true },
@@ -47,91 +54,106 @@ export async function handleIncomingDM(senderId: string, messageText: string, ac
   if (!account) return;
 
   const automation = await prisma.automation.findFirst({
-    where: { instagramAccountId: account.id, isActive: true },
+    where: { instagramAccountId: account.id, isActive: true, isLeadFormEnabled: true },
   });
 
-  // Urutan pertanyaan dinamis (bisa disesuaikan / diambil dari DB nanti)
-  const questions = [
-    { key: "fullName", text: "Boleh diinfokan Nama Lengkap Kakak ?" },
-    {
-      key: "major",
-      text: "Kakak tertarik dengan jurusan apa?",
-      options: [
-        { title: "S1 Informatika", payload: "S1 Informatika" },
-        { title: "S1 Bisnis", payload: "S1 Bisnis" },
-        { title: "S1 Desain", payload: "S1 Desain" },
-      ],
+  if (!automation || !automation.questions) return;
+
+  const questions = automation.questions as unknown as QuestionItem[];
+  if (!Array.isArray(questions) || questions.length === 0) return;
+
+  // 2. Ambil/Buat record progres pengerjaan "GForm" user di DB
+  let lead = await prisma.leadResponse.findUnique({
+    where: {
+      automationId_instagramUserId: {
+        automationId: automation.id,
+        instagramUserId: senderId,
+      },
     },
-    { key: "phoneNumber", text: "Apakah ada nomor WhatsApp yang bisa dihubungi?\n\nTim Admisi kami siap memberikan penjelasan lebih detail." },
-  ];
-
-  let conv = await prisma.leadConversation.findUnique({
-    where: { instagramUserId: senderId },
   });
 
-  // 2. Jika user baru mulai / reset flow
-  if (!conv || conv.step === "COMPLETED") {
-    await prisma.leadConversation.upsert({
-      where: { instagramUserId: senderId },
-      update: { step: "AWAITING_NAME", fullName: null, major: null, phoneNumber: null },
-      create: { instagramUserId: senderId, step: "AWAITING_NAME" },
+  // Jika user baru pertama kali / mengulang dari awal
+  if (!lead || lead.isCompleted) {
+    lead = await prisma.leadResponse.upsert({
+      where: {
+        automationId_instagramUserId: {
+          automationId: automation.id,
+          instagramUserId: senderId,
+        },
+      },
+      update: { currentStepIndex: 0, answers: {}, isCompleted: false },
+      create: {
+        automationId: automation.id,
+        instagramUserId: senderId,
+        currentStepIndex: 0,
+        answers: {},
+      },
     });
 
-    // Kirim Pertanyaan Pertama
-    await sendInstagramDM(senderId, questions[0].text, accessToken);
+    // Kirim Pertanyaan Pertama (Step 0)
+    const firstQ = questions[0];
+    const quickReplies = firstQ.type === "button" && firstQ.options
+      ? firstQ.options.map((opt) => ({ title: opt, payload: opt }))
+      : undefined;
+
+    await sendInstagramDM(senderId, firstQ.label, accessToken, quickReplies);
     return;
   }
 
-  // 3. Step 1 Jawab (Nama) -> Tanya Jurusan (Quick Replies)
-  if (conv.step === "AWAITING_NAME") {
-    await prisma.leadConversation.update({
-      where: { instagramUserId: senderId },
-      data: { fullName: messageText, step: "AWAITING_MAJOR" },
-    });
+  // 3. Simpan jawaban dari pertanyaan sebelumnya
+  const currentAnswers = (lead.answers as Record<string, string>) || {};
+  const currentQuestion = questions[lead.currentStepIndex];
 
-    await sendInstagramDM(
-      senderId,
-      questions[1].text,
-      accessToken,
-      questions[1].options
-    );
-    return;
+  if (currentQuestion) {
+    currentAnswers[currentQuestion.label] = messageText;
   }
 
-  // 4. Step 2 Jawab (Jurusan) -> Tanya No WA
-  if (conv.step === "AWAITING_MAJOR") {
-    await prisma.leadConversation.update({
-      where: { instagramUserId: senderId },
-      data: { major: messageText, step: "AWAITING_PHONE" },
+  const nextIndex = lead.currentStepIndex + 1;
+
+  // 4. Jika MASIH ADA pertanyaan berikutnya
+  if (nextIndex < questions.length) {
+    await prisma.leadResponse.update({
+      where: { id: lead.id },
+      data: {
+        currentStepIndex: nextIndex,
+        answers: currentAnswers,
+      },
     });
 
-    await sendInstagramDM(senderId, questions[2].text, accessToken);
-    return;
-  }
+    const nextQ = questions[nextIndex];
+    const quickReplies = nextQ.type === "button" && nextQ.options
+      ? nextQ.options.map((opt) => ({ title: opt, payload: opt }))
+      : undefined;
 
-  // 5. Step 3 Jawab (No WA) -> Oper Data & Selesai
-  if (conv.step === "AWAITING_PHONE") {
-    const updatedConv = await prisma.leadConversation.update({
-      where: { instagramUserId: senderId },
-      data: { phoneNumber: messageText, step: "COMPLETED" },
+    await sendInstagramDM(senderId, nextQ.label, accessToken, quickReplies);
+  } else {
+    // 5. Jika SEMUA Pertanyaan Sudah Terjawab (COMPLETED)
+    await prisma.leadResponse.update({
+      where: { id: lead.id },
+      data: {
+        isCompleted: true,
+        answers: currentAnswers,
+      },
     });
 
-    const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+    // 🚀 FIRING HASIL DATA DINAMIS KE WEBHOOK (GOOGLE SHEETS / INTEGRATELY)
+    const webhookUrl = automation.webhookDestinationUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
     if (webhookUrl) {
       fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fullName: updatedConv.fullName,
-          major: updatedConv.major,
-          phoneNumber: updatedConv.phoneNumber,
-          source: "dm_instagram",
+          instagramUserId: senderId,
           submittedAt: new Date().toISOString(),
+          answers: currentAnswers, // Format JSON otomatis mengikuti pertanyaan di UI!
         }),
-      }).catch((err) => console.error("Error sending lead:", err));
+      }).catch((err) => console.error("Error sending dynamic lead:", err));
     }
 
-    await sendInstagramDM(senderId, "Terima kasih, Tim kami akan menghubungi anda.", accessToken);
-    return;
+    await sendInstagramDM(
+      senderId,
+      "Terima kasih banyak! Data Anda telah berhasil tersimpan. 🙏",
+      accessToken
+    );
   }
 }

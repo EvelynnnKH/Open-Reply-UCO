@@ -214,25 +214,25 @@ model Automation {
   @@index([postId])
 
   //tambahan
-  isLeadFormEnabled     Boolean  @default(false)
-  questions             Json?    // Menyimpan array pertanyaan custom, contoh: ["Nama Lengkap?", "Jurusan?", "No WhatsApp?"]
-  webhookDestinationUrl String?  // Webhook tujuan untuk kirim hasil (contoh: Integrately / Sheets)
+  isLeadFormEnabled     Boolean  @default(true)
+  questions             Json?    // Menyimpan array pertanyaan & opsi button
+  webhookDestinationUrl String?  // Webhook tujuan ke Google Sheets / Integrately
   
-  leads                 LeadResponse[]
+  leadResponses         LeadResponse[]
 }
 
 model LeadResponse {
   id               String   @id @default(cuid())
   automationId     String
   instagramUserId String
-  answers          Json     // Menyimpan jawaban user { "Nama Lengkap?": "Evelyn", "Jurusan?": "Informatika" }
-  isCompleted      Boolean  @default(false)
+  answers          Json     // Simpan JSON key-value: { "Nama": "Evelyn", "Umur": "20", "Jurusan": "Informatika" }
   currentStepIndex Int      @default(0)
+  isCompleted      Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
-  
+
   @@unique([automationId, instagramUserId])
 }
 
