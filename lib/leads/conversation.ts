@@ -1,5 +1,6 @@
 import { Prisma } from "@/app/generated/prisma/browser";
 import { prisma } from "@/lib/db/client";
+import { decryptToken } from "@/lib/meta/oauth";
 
 export interface QuestionItem {
   id: string;
@@ -77,12 +78,19 @@ export async function handleIncomingDM(
       return;
     }
 
-    // 1. Cari Instagram Account
+    // 1. Cari Instagram Account (Pencarian DB harus pakai token yang masih terenkripsi)
     const account = await prisma.instagramAccount.findFirst({
       where: { accessToken },
       select: { id: true },
     });
     if (!account) return;
+
+    // ✅ DECRYPT TOKEN DI SINI SEBELUM DIKIRIM KE FACEBOOK API!
+    try {
+      accessToken = decryptToken(accessToken);
+    } catch (err) {
+      console.error("🔥 Gagal decrypt token:", err);
+    }
 
     // 2. Cari Automation Aktif & Lead Form Nyala (YANG QUESTIONS-NYA ADA ISINYA!)
     const automation = await prisma.automation.findFirst({
