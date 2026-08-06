@@ -224,14 +224,14 @@ model Automation {
 model LeadResponse {
   id               String   @id @default(cuid())
   automationId     String
-  instagramUserId String
-  answers          Json     // Simpan JSON key-value: { "Nama": "Evelyn", "Umur": "20", "Jurusan": "Informatika" }
+  instagramUserId  String
   currentStepIndex Int      @default(0)
+  answers          Json     @default("{}")
   isCompleted      Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  automation Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  automation       Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
 
   @@unique([automationId, instagramUserId])
 }
