@@ -67,7 +67,29 @@ export async function handleIncomingDM(
   messageText: string,
   accessToken: string
 ) {
-  console.log("🔥 WEBHOOK MENERIMA PESAN MASUK:", { senderId, messageText });
+  console.log("🔥 1. MASUK handleIncomingDM:", { senderId, messageText });
+
+  const account = await prisma.instagramAccount.findFirst({
+    where: { accessToken },
+    select: { id: true },
+  });
+  console.log("🔥 2. ACCOUNT FOUND:", account);
+  if (!account) return;
+
+  const automation = await prisma.automation.findFirst({
+    where: { instagramAccountId: account.id, isActive: true, isLeadFormEnabled: true },
+  });
+  console.log("🔥 3. AUTOMATION FOUND:", automation?.id, "LeadFormEnabled:", automation?.isLeadFormEnabled);
+  if (!automation || !automation.questions) return;
+
+  let questions: any[] = [];
+  if (typeof automation.questions === "string") {
+    try { questions = JSON.parse(automation.questions); } catch (e) {}
+  } else if (Array.isArray(automation.questions)) {
+    questions = automation.questions;
+  }
+  console.log("🔥 4. QUESTIONS LENGTH:", questions.length);
+  if (questions.length === 0) return;
   try {
     // 1. Cari Instagram Account & Automation aktif
     const account = await prisma.instagramAccount.findFirst({
