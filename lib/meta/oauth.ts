@@ -71,10 +71,10 @@ export function verifyOAuthState(state: string | null): OAuthStatePayload | null
 
 export function getAuthorizationUrl(redirectUri: string, state: string): string {
   const params = new URLSearchParams({
-    client_id: requireEnv("INSTAGRAM_APP_ID"),
+    client_id: requireEnv("INSTAGRAM_APP_ID"), 
     redirect_uri: redirectUri,
     scope:
-      "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights",
+      "pages_manage_messages,instagram_basic,instagram_manage_messages,pages_show_list",
     response_type: "code",
     state,
   });
