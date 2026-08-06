@@ -68,46 +68,31 @@ export async function handleIncomingDM(
   messageText: string,
   accessToken: string
 ) {
-  console.log("🔥 1. MASUK handleIncomingDM:", { senderId, messageText });
-
-  const account = await prisma.instagramAccount.findFirst({
-    where: { accessToken },
-    select: { id: true },
-  });
-  console.log("🔥 2. ACCOUNT FOUND:", account);
-  if (!account) return;
-
-  const automation = await prisma.automation.findFirst({
-    where: { instagramAccountId: account.id, isActive: true, isLeadFormEnabled: true },
-  });
-  console.log("🔥 3. AUTOMATION FOUND:", automation?.id, "LeadFormEnabled:", automation?.isLeadFormEnabled);
-  if (!automation || !automation.questions) return;
-
-  let questions: any[] = [];
-  if (typeof automation.questions === "string") {
-    try { questions = JSON.parse(automation.questions); } catch (e) {}
-  } else if (Array.isArray(automation.questions)) {
-    questions = automation.questions;
-  }
-  console.log("🔥 4. QUESTIONS LENGTH:", questions.length);
-  if (questions.length === 0) return;
   try {
-    // 1. Cari Instagram Account & Automation aktif
+    console.log("🔥 1. MASUK handleIncomingDM:", { senderId, messageText });
+
+    // 1. Cari Instagram Account
     const account = await prisma.instagramAccount.findFirst({
       where: { accessToken },
       select: { id: true },
     });
-
+    console.log("🔥 2. ACCOUNT FOUND:", account);
     if (!account) return;
 
+    // 2. Cari Automation Aktif & Lead Form Nyala
     const automation = await prisma.automation.findFirst({
-      where: { instagramAccountId: account.id, isActive: true, isLeadFormEnabled: true, questions: { not: Prisma.JsonNull }},
+      where: { 
+        instagramAccountId: account.id, 
+        isActive: true, 
+        isLeadFormEnabled: true 
+      },
       orderBy: { createdAt: "desc" },
     });
-
+    console.log("🔥 3. AUTOMATION FOUND:", automation?.id, "LeadFormEnabled:", automation?.isLeadFormEnabled);
     if (!automation) return;
 
-    // --- 🚨 FIX SILENT BUG: Pastikan array questions di-parse dengan benar ---
+    // 3. Parse Questions dengan aman
+    let questions: QuestionItem[] = [];
     try {
       if (typeof automation.questions === "string") {
         questions = JSON.parse(automation.questions);
@@ -119,12 +104,12 @@ export async function handleIncomingDM(
     }
 
     console.log("🔥 4. QUESTIONS LENGTH BERHASIL:", questions.length);
-    if (questions.length === 0) {
+    if (!Array.isArray(questions) || questions.length === 0) {
       console.log("🔥 4.1 ERROR: QUESTIONS KOSONG!");
       return;
     }
 
-    // 2. Ambil / Buat record progres user
+    // 4. Ambil / Buat record progres user (LeadResponse)
     let lead = await (prisma as any).leadResponse.findUnique({
       where: {
         automationId_instagramUserId: {
@@ -134,7 +119,7 @@ export async function handleIncomingDM(
       },
     });
 
-    // JIKA USER BARU / KLIK TOMBOL OPENING DM
+    // JIKA USER BARU / MEMULAI DARI AWAL
     if (!lead || lead.isCompleted) {
       lead = await (prisma as any).leadResponse.upsert({
         where: {
@@ -154,7 +139,7 @@ export async function handleIncomingDM(
 
       let currentIndex = 0;
 
-      // Flush semua pesan yang cuma "Informasi Saja" di awal
+      // Flush pesan informasi awal (isCollectAnswer == false)
       while (
         currentIndex < questions.length &&
         !questions[currentIndex].isCollectAnswer
@@ -168,14 +153,12 @@ export async function handleIncomingDM(
         data: { currentStepIndex: currentIndex },
       });
 
-      // --- 🚨 FIX TOMBOL: Cek dinamis tombol "Mau" / "Info Lebih Lanjut" ---
-      // Supaya nggak nembak pertanyaan ke-1 dua kali (karena udah dikirim worker)
+      // Cek apakah pesan masuk adalah klik tombol opening DM
       const isClickingOpeningButton =
         automation.openingDmEnabled &&
         automation.openingDmButtonLabel &&
         messageText.trim().toLowerCase() === automation.openingDmButtonLabel.trim().toLowerCase();
 
-      // Kirim pertanyaan pertama hanya jika user ngetik kata kunci manual (bukan klik tombol)
       if (currentIndex < questions.length && !isClickingOpeningButton) {
         await sendQuestionStep(senderId, questions[currentIndex], accessToken);
       }
@@ -183,8 +166,6 @@ export async function handleIncomingDM(
     }
 
     // JIKA USER MEMBALAS PERTANYAAN (FLOW BERJALAN)
-    
-    // --- 🚨 FIX STATE JAWABAN: Pastikan answers jadi object beneran ---
     let currentAnswers: Record<string, any> = {};
     if (typeof lead.answers === "string") {
        try { currentAnswers = JSON.parse(lead.answers); } catch(e) {}
@@ -195,16 +176,16 @@ export async function handleIncomingDM(
     let stepIndex = lead.currentStepIndex;
     const currentQuestion = questions[stepIndex];
 
-    // 3. Simpan jawaban user ke memori
+    // Simpan jawaban user berdasarkan variableKey
     if (currentQuestion && currentQuestion.isCollectAnswer) {
       const key = currentQuestion.variableKey || `field_${stepIndex + 1}`;
       currentAnswers[key] = messageText;
     }
 
-    // Pindah ke step selanjutnya (Langkah ke-2)
+    // Pindah ke step berikutnya
     stepIndex++;
 
-    // 4. Lewati & kirim langsung pesan-pesan yang tipe "Informasi Saja" di tengah-tengah
+    // Lewati pesan informasi di tengah
     while (
       stepIndex < questions.length &&
       !questions[stepIndex].isCollectAnswer
@@ -213,9 +194,8 @@ export async function handleIncomingDM(
       stepIndex++;
     }
 
-    // 5. Cek apakah masih ada pertanyaan (Nembak form Jurusan)
+    // Cek apakah masih ada pertanyaan lanjutan (misal: Jurusan)
     if (stepIndex < questions.length) {
-      // Simpan state index terbaru ke DB
       await (prisma as any).leadResponse.update({
         where: { id: lead.id },
         data: {
@@ -224,10 +204,10 @@ export async function handleIncomingDM(
         },
       });
 
-      // Kirim Pertanyaan Berikutnya! 🚀
+      // 🚀 KIRIM PERTANYAAN BERIKUTNYA!
       await sendQuestionStep(senderId, questions[stepIndex], accessToken);
     } else {
-      // 6. SEMUA LANGKAH SELESAI (COMPLETED)
+      // SEMUA SELESAI
       await (prisma as any).leadResponse.update({
         where: { id: lead.id },
         data: {
@@ -237,7 +217,6 @@ export async function handleIncomingDM(
         },
       });
 
-      // 🚀 Tembak hasil webhook external (Google Sheets, dll)
       const webhookUrl = automation.webhookDestinationUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
       if (webhookUrl) {
         fetch(webhookUrl, {
@@ -248,7 +227,7 @@ export async function handleIncomingDM(
             submittedAt: new Date().toISOString(),
             answers: currentAnswers,
           }),
-        }).catch((err) => console.error("Error webhook eksternal:", err));
+        }).catch((err) => console.error("Error webhook:", err));
       }
 
       await sendInstagramDM(
@@ -260,4 +239,4 @@ export async function handleIncomingDM(
   } catch (error) {
     console.error("🔥 CRASH DI handleIncomingDM:", error);
   }
-} 
+}
