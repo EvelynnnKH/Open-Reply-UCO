@@ -70,7 +70,10 @@ export async function handleIncomingDM(
 ) {
   try {
     console.log("🔥 1. MASUK handleIncomingDM:", { senderId, messageText });
-
+    if (messageText.startsWith("reveal:") || messageText.startsWith("followcheck:")) {
+      console.log("⚠️ Mengabaikan postback payload di handleIncomingDM:", messageText);
+      return;
+    }
     // 1. Cari Instagram Account
     const account = await prisma.instagramAccount.findFirst({
       where: { accessToken },
