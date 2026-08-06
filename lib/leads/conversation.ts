@@ -109,17 +109,16 @@ export async function handleIncomingDM(
 
     // --- 🚨 FIX SILENT BUG: Pastikan array questions di-parse dengan benar ---
     let questions: QuestionItem[] = [];
-    if (typeof automation.questions === "string") {
-      try {
+    try {
+      if (typeof automation.questions === "string") {
         questions = JSON.parse(automation.questions);
-      } catch (e) {
-        console.error("Gagal parse JSON automation.questions", e);
+      } else if (automation.questions) {
+        // FIX TS: Cast lewat 'unknown' dulu biar TypeScript nggak protes
+        questions = automation.questions as unknown as QuestionItem[];
       }
-    } else if (Array.isArray(automation.questions)) {
-      questions = automation.questions as unknown as QuestionItem[];
+    } catch (err) {
+      console.error("🔥 ERROR PARSE QUESTIONS:", err);
     }
-
-    if (questions.length === 0) return;
 
     // 2. Ambil / Buat record progres user
     let lead = await (prisma as any).leadResponse.findUnique({
