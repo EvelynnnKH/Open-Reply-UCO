@@ -71,10 +71,9 @@ export function verifyOAuthState(state: string | null): OAuthStatePayload | null
 
 export function getAuthorizationUrl(redirectUri: string, state: string): string {
   const params = new URLSearchParams({
-    client_id: requireEnv("INSTAGRAM_APP_ID"), 
+    client_id: process.env.FACEBOOK_CLIENT_ID || requireEnv("INSTAGRAM_APP_ID"), // ganti pakai env Facebook App ID lu
     redirect_uri: redirectUri,
-    scope:
-      "pages_manage_messages,instagram_basic,instagram_manage_messages,pages_show_list",
+    scope: "pages_manage_messages,instagram_basic,instagram_manage_messages,pages_show_list",
     response_type: "code",
     state,
   });
