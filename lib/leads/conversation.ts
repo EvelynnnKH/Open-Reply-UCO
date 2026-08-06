@@ -67,6 +67,7 @@ export async function handleIncomingDM(
   messageText: string,
   accessToken: string
 ) {
+  console.log("🔥 WEBHOOK MENERIMA PESAN MASUK:", { senderId, messageText });
   try {
     // 1. Cari Instagram Account & Automation aktif
     const account = await prisma.instagramAccount.findFirst({
