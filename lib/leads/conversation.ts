@@ -108,16 +108,20 @@ export async function handleIncomingDM(
     if (!automation) return;
 
     // --- 🚨 FIX SILENT BUG: Pastikan array questions di-parse dengan benar ---
-    let questions: QuestionItem[] = [];
     try {
       if (typeof automation.questions === "string") {
         questions = JSON.parse(automation.questions);
       } else if (automation.questions) {
-        // FIX TS: Cast lewat 'unknown' dulu biar TypeScript nggak protes
         questions = automation.questions as unknown as QuestionItem[];
       }
     } catch (err) {
       console.error("🔥 ERROR PARSE QUESTIONS:", err);
+    }
+
+    console.log("🔥 4. QUESTIONS LENGTH BERHASIL:", questions.length);
+    if (questions.length === 0) {
+      console.log("🔥 4.1 ERROR: QUESTIONS KOSONG!");
+      return;
     }
 
     // 2. Ambil / Buat record progres user
