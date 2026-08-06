@@ -626,8 +626,6 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     return;
   }
 
-  // Duplicate sends are enabled: every button tap re-sends the reveal
-  // instead of only firing once per person.
   const dedupeId = `reveal:${userId}`;
 
   if (fallback) {
@@ -642,7 +640,6 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     if (existingReveal?.status === "SENT") return;
   }
 
-  // Personalize {username} from the opening DM log for this user, if present.
   const openingLog = await prisma.dmLog.findFirst({
     where: { automationId: automation.id, commenterId: userId },
     select: { commenterName: true },
@@ -656,12 +653,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     return;
   }
 
-  // Follow-gate: before revealing the link, verify the user follows. On a
-  // `followcheck:` tap a non-follower gets the prompt again (no quota spent);
-  // on a read fallback a non-follower is silently skipped — the gate must not
-  // be bypassable by just reading the DM and waiting. Following, or
-  // unverifiable (null), falls through and delivers the link — fail-open so a
-  // real follower is never trapped.
+  // Follow-gate check
   if ((isFollowCheck || fallback) && automation.requireFollow) {
     const follows = await getUserFollowStatus(accessToken, userId);
     if (follows === false) {
@@ -669,7 +661,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       const promptText = renderMessageWithoutLink({
         message:
           automation.followPromptMessage ||
-          "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
+          "quick favor before i send your link...",
         commenterName,
       });
       try {
@@ -682,10 +674,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
           `followcheck:${automation.id}`
         );
       } catch (error) {
-        console.log(
-          "[DM Worker] Failed to re-send follow prompt:",
-          formatError(error)
-        );
+        console.log("[DM Worker] Failed to re-send follow prompt:", formatError(error));
       }
       return;
     }
@@ -714,8 +703,82 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   }
 
   try {
-    if (automation.trackedLinks.length > 0) {
-      // Try button template first; if Meta rejects it, fall back to inline links.
+    // --- 🚀 CEK APAKAH CAMPAIGN INI MENGGUNAKAN INTERACTIVE LEAD FORM ---
+    let questions: any[] = [];
+    if (automation.isLeadFormEnabled && automation.questions) {
+      if (typeof automation.questions === "string") {
+        try { questions = JSON.parse(automation.questions); } catch (e) {}
+      } else if (Array.isArray(automation.questions)) {
+        questions = automation.questions;
+      }
+    }
+
+    if (questions.length > 0) {
+      // 1. Buat atau Reset record LeadResponse session user di database
+      let lead = await (prisma as any).leadResponse.upsert({
+        where: {
+          automationId_instagramUserId: {
+            automationId: automation.id,
+            instagramUserId: userId,
+          },
+        },
+        update: { currentStepIndex: 0, answers: {}, isCompleted: false },
+        create: {
+          automationId: automation.id,
+          instagramUserId: userId,
+          currentStepIndex: 0,
+          answers: {},
+        },
+      });
+
+      let currentIndex = 0;
+
+      // 2. Kirim pesan-pesan awal yang tipe informasional (isCollectAnswer == false)
+      while (
+        currentIndex < questions.length &&
+        !questions[currentIndex].isCollectAnswer
+      ) {
+        const q = questions[currentIndex];
+        await sendDirectMessage(accessToken, automation.instagramAccount.instagramId, userId, q.label);
+        currentIndex++;
+      }
+
+      // 3. Simpan index step terbaru
+      await (prisma as any).leadResponse.update({
+        where: { id: lead.id },
+        data: { currentStepIndex: currentIndex },
+      });
+
+      // 4. Kirim Pertanyaan Pertama yang butuh jawaban (Misal: Nama Lengkap)
+      if (currentIndex < questions.length) {
+        const q = questions[currentIndex];
+        const quickReplies =
+          q.type === "button" && q.options
+            ? q.options.filter(Boolean).map((opt: string) => ({ title: opt, payload: opt }))
+            : undefined;
+
+        if (quickReplies && quickReplies.length > 0) {
+          // Kirim pakai button quick reply jika tipenya button
+          await sendDirectMessageWithButton(
+            accessToken,
+            automation.instagramAccount.instagramId,
+            userId,
+            q.label,
+            quickReplies[0].title, // fallback title
+            quickReplies[0].payload
+          ); // Atau sesuaikan dengan fungsi sender button multi-opsi lu kalau ada
+        } else {
+          await sendDirectMessage(
+            accessToken,
+            automation.instagramAccount.instagramId,
+            userId,
+            q.label
+          );
+        }
+      }
+
+    } else if (automation.trackedLinks.length > 0) {
+      // Logic lama (jika tidak pakai lead form, langsung kirim link)
       const bodyText =
         renderMessageWithoutLink({
           message: automation.dmMessage,
@@ -735,30 +798,19 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
           buttons
         );
       } catch (buttonError) {
-        // As in processComment: a closed messaging window rejects the text
-        // retry too, so don't let it overwrite the original error.
         if (!isTemplateRejection(buttonError)) throw buttonError;
-
-        console.log(
-          "[DM Worker] Button template rejected in postback, falling back to inline link:",
-          formatError(buttonError)
-        );
         const fallbackMessage = buildInlineLinkFallback(
           automation.dmMessage,
           commenterName,
           automation.trackedLinks,
           bodyText
         );
-        try {
-          await sendDirectMessage(
-            accessToken,
-            automation.instagramAccount.instagramId,
-            userId,
-            fallbackMessage
-          );
-        } catch {
-          throw buttonError;
-        }
+        await sendDirectMessage(
+          accessToken,
+          automation.instagramAccount.instagramId,
+          userId,
+          fallbackMessage
+        );
       }
     } else {
       const revealMessage = renderMessageWithTracking({
@@ -773,10 +825,8 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
         revealMessage
       );
     }
-    // Optional appreciation follow-up: once the link has been delivered, send a
-    // short thank-you. It is scheduled as its own delayed job so it can go out
-    // some minutes later (followUpDelayMinutes) rather than immediately. The
-    // deterministic job id dedupes repeat button taps to one follow-up per user.
+
+    // Follow-up scheduling
     if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
       const delayMs =
         Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
@@ -794,6 +844,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
         }
       );
     }
+
     await prisma.dmLog.upsert({
       where: {
         automationId_commentId: { automationId: automation.id, commentId: dedupeId },
@@ -814,13 +865,6 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   } catch (error) {
     await releaseWorkspaceDMReservation(automation.workspaceId, usage.periodStart);
 
-    // The read fallback is speculative: it only runs when the user read the
-    // opening DM and never tapped the button, which means they never messaged
-    // us, which means the 24-hour window is closed and Meta rejects the send
-    // ("outside of allowed window"). That is the expected outcome here, not a
-    // failure the user can act on — so don't log it as FAILED and don't retry
-    // it against a window that cannot reopen on its own. It still delivers in
-    // the case that does work: the user replied by typing instead of tapping.
     if (fallback) {
       console.log(
         "[DM Worker] Read fallback not delivered (messaging window closed):",
