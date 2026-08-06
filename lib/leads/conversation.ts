@@ -86,16 +86,23 @@ export async function handleIncomingDM(
     if (!account) return;
 
     // ✅ DECRYPT TOKEN DI SINI SEBELUM DIKIRIM KE FACEBOOK API!
+    // ✅ DECRYPT TOKEN DENGAN PINTAR
     try {
-      // Cek apakah token masih terenkripsi. Kalau udah asli (EAA/IG), biarin aja!
-      if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
-        accessToken = decryptToken(accessToken);
-      }
+      // 1. Hilangkan spasi/enter bawaan dari database
+      accessToken = accessToken.trim(); 
+      
+      // 2. Cek apakah butuh decrypt
+      // if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
+      //   accessToken = decryptToken(accessToken);
+      // }
+      
+      // 3. Hilangkan spasi lagi jaga-jaga hasil decrypt kotor
+      accessToken = accessToken.trim(); 
+      
       console.log("🔥 TOKEN AMAN KE META:", accessToken.substring(0, 15) + "...");
     } catch (err) {
       console.error("🔥 Gagal decrypt token:", err);
     }
-
     // 2. Cari Automation Aktif & Lead Form Nyala (YANG QUESTIONS-NYA ADA ISINYA!)
     const automation = await prisma.automation.findFirst({
       where: { 
