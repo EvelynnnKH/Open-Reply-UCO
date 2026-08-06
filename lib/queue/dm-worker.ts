@@ -703,7 +703,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
   }
 
   try {
-    // --- 🚀 CEK APAKAH CAMPAIGN INI MENGGUNAKAN INTERACTIVE LEAD FORM ---
+    // --- 🚀 CEK APAKAH LEAD FORM AKTIF ---
     let questions: any[] = [];
     if (automation.isLeadFormEnabled && automation.questions) {
       if (typeof automation.questions === "string") {
@@ -714,7 +714,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
     }
 
     if (questions.length > 0) {
-      // 1. Buat atau Reset record LeadResponse session user di database
+      // 1. Inisialisasi Session LeadResponse ke index 0
       let lead = await (prisma as any).leadResponse.upsert({
         where: {
           automationId_instagramUserId: {
@@ -733,7 +733,7 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
 
       let currentIndex = 0;
 
-      // 2. Kirim pesan-pesan awal yang tipe informasional (isCollectAnswer == false)
+      // 2. Kirim pesan pengantar / informasi (jika ada yang isCollectAnswer == false)
       while (
         currentIndex < questions.length &&
         !questions[currentIndex].isCollectAnswer
@@ -743,13 +743,13 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
         currentIndex++;
       }
 
-      // 3. Simpan index step terbaru
+      // 3. Update index ke database
       await (prisma as any).leadResponse.update({
         where: { id: lead.id },
         data: { currentStepIndex: currentIndex },
       });
 
-      // 4. Kirim Pertanyaan Pertama yang butuh jawaban (Misal: Nama Lengkap)
+      // 4. Kirim HANYA PERTANYAAN PERTAMA (Index yang butuh jawaban)
       if (currentIndex < questions.length) {
         const q = questions[currentIndex];
         const quickReplies =
@@ -758,15 +758,14 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
             : undefined;
 
         if (quickReplies && quickReplies.length > 0) {
-          // Kirim pakai button quick reply jika tipenya button
           await sendDirectMessageWithButton(
             accessToken,
             automation.instagramAccount.instagramId,
             userId,
             q.label,
-            quickReplies[0].title, // fallback title
+            quickReplies[0].title,
             quickReplies[0].payload
-          ); // Atau sesuaikan dengan fungsi sender button multi-opsi lu kalau ada
+          );
         } else {
           await sendDirectMessage(
             accessToken,
@@ -778,7 +777,6 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       }
 
     } else if (automation.trackedLinks.length > 0) {
-      // Logic lama (jika tidak pakai lead form, langsung kirim link)
       const bodyText =
         renderMessageWithoutLink({
           message: automation.dmMessage,
@@ -826,7 +824,6 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
       );
     }
 
-    // Follow-up scheduling
     if (automation.followUpEnabled && automation.followUpMessage?.trim()) {
       const delayMs =
         Math.max(0, automation.followUpDelayMinutes ?? 0) * 60_000;
