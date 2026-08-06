@@ -87,7 +87,11 @@ export async function handleIncomingDM(
 
     // ✅ DECRYPT TOKEN DI SINI SEBELUM DIKIRIM KE FACEBOOK API!
     try {
-      accessToken = decryptToken(accessToken);
+      // Cek apakah token masih terenkripsi. Kalau udah asli (EAA/IG), biarin aja!
+      if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
+        accessToken = decryptToken(accessToken);
+      }
+      console.log("🔥 TOKEN AMAN KE META:", accessToken.substring(0, 15) + "...");
     } catch (err) {
       console.error("🔥 Gagal decrypt token:", err);
     }
