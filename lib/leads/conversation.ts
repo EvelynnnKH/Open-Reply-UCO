@@ -99,15 +99,19 @@ export async function handleIncomingDM(
       } else if (automation.questions) {
         questions = automation.questions as unknown as QuestionItem[];
       }
+      console.log("gemini goblok0");
     } catch (err) {
       console.error("🔥 ERROR PARSE QUESTIONS:", err);
     }
 
+    console.log("gemini goblok1");
     console.log("🔥 4. QUESTIONS LENGTH BERHASIL:", questions.length);
     if (!Array.isArray(questions) || questions.length === 0) {
+      console.log("gemini goblok2");
       console.log("🔥 4.1 ERROR: QUESTIONS KOSONG!");
       return;
     }
+    console.log("gemini goblok3");
 
     // 4. Ambil / Buat record progres user (LeadResponse)
     let lead = await (prisma as any).leadResponse.findUnique({
