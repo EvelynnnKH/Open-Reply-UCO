@@ -80,10 +80,21 @@ export async function handleIncomingDM(
       where: { instagramAccountId: account.id, isActive: true, isLeadFormEnabled: true },
     });
 
-    if (!automation || !automation.questions) return;
+    if (!automation) return;
 
-    const questions = automation.questions as unknown as QuestionItem[];
-    if (!Array.isArray(questions) || questions.length === 0) return;
+    // --- 🚨 FIX SILENT BUG: Pastikan array questions di-parse dengan benar ---
+    let questions: QuestionItem[] = [];
+    if (typeof automation.questions === "string") {
+      try {
+        questions = JSON.parse(automation.questions);
+      } catch (e) {
+        console.error("Gagal parse JSON automation.questions", e);
+      }
+    } else if (Array.isArray(automation.questions)) {
+      questions = automation.questions as unknown as QuestionItem[];
+    }
+
+    if (questions.length === 0) return;
 
     // 2. Ambil / Buat record progres user
     let lead = await (prisma as any).leadResponse.findUnique({
@@ -95,7 +106,7 @@ export async function handleIncomingDM(
       },
     });
 
-    // JIKA USER BARU (Atau efek klik tombol Info Lebih Lanjut yang belum ke-record)
+    // JIKA USER BARU / KLIK TOMBOL OPENING DM
     if (!lead || lead.isCompleted) {
       lead = await (prisma as any).leadResponse.upsert({
         where: {
@@ -115,7 +126,7 @@ export async function handleIncomingDM(
 
       let currentIndex = 0;
 
-      // Flush pesan informasi berturut-turut
+      // Flush semua pesan yang cuma "Informasi Saja" di awal
       while (
         currentIndex < questions.length &&
         !questions[currentIndex].isCollectAnswer
@@ -129,17 +140,23 @@ export async function handleIncomingDM(
         data: { currentStepIndex: currentIndex },
       });
 
-      // Jangan kirim pertanyaan indeks 0 lagi jika messageText sama dengan sapaan awal
-      // Biar nggak double nanya kalau webhook tumpang tindih.
-      if (currentIndex < questions.length && messageText.toLowerCase() !== "info lebih lanjut") {
-         await sendQuestionStep(senderId, questions[currentIndex], accessToken);
+      // --- 🚨 FIX TOMBOL: Cek dinamis tombol "Mau" / "Info Lebih Lanjut" ---
+      // Supaya nggak nembak pertanyaan ke-1 dua kali (karena udah dikirim worker)
+      const isClickingOpeningButton =
+        automation.openingDmEnabled &&
+        automation.openingDmButtonLabel &&
+        messageText.trim().toLowerCase() === automation.openingDmButtonLabel.trim().toLowerCase();
+
+      // Kirim pertanyaan pertama hanya jika user ngetik kata kunci manual (bukan klik tombol)
+      if (currentIndex < questions.length && !isClickingOpeningButton) {
+        await sendQuestionStep(senderId, questions[currentIndex], accessToken);
       }
       return;
     }
 
     // JIKA USER MEMBALAS PERTANYAAN (FLOW BERJALAN)
     
-    // CARA AMAN CLONING JSON ANSWERS DARI PRISMA
+    // --- 🚨 FIX STATE JAWABAN: Pastikan answers jadi object beneran ---
     let currentAnswers: Record<string, any> = {};
     if (typeof lead.answers === "string") {
        try { currentAnswers = JSON.parse(lead.answers); } catch(e) {}
@@ -150,16 +167,16 @@ export async function handleIncomingDM(
     let stepIndex = lead.currentStepIndex;
     const currentQuestion = questions[stepIndex];
 
-    // 3. Simpan jawaban user
+    // 3. Simpan jawaban user ke memori
     if (currentQuestion && currentQuestion.isCollectAnswer) {
       const key = currentQuestion.variableKey || `field_${stepIndex + 1}`;
       currentAnswers[key] = messageText;
     }
 
-    // Pindah ke step selanjutnya
+    // Pindah ke step selanjutnya (Langkah ke-2)
     stepIndex++;
 
-    // 4. Lewati pesan informasi
+    // 4. Lewati & kirim langsung pesan-pesan yang tipe "Informasi Saja" di tengah-tengah
     while (
       stepIndex < questions.length &&
       !questions[stepIndex].isCollectAnswer
@@ -168,8 +185,9 @@ export async function handleIncomingDM(
       stepIndex++;
     }
 
-    // 5. Cek apakah masih ada pertanyaan
+    // 5. Cek apakah masih ada pertanyaan (Nembak form Jurusan)
     if (stepIndex < questions.length) {
+      // Simpan state index terbaru ke DB
       await (prisma as any).leadResponse.update({
         where: { id: lead.id },
         data: {
@@ -178,10 +196,10 @@ export async function handleIncomingDM(
         },
       });
 
-      // Kirim Pertanyaan Berikutnya! (Ini yang tombol Jurusan)
+      // Kirim Pertanyaan Berikutnya! 🚀
       await sendQuestionStep(senderId, questions[stepIndex], accessToken);
     } else {
-      // 6. SEMUA LANGKAH SELESAI
+      // 6. SEMUA LANGKAH SELESAI (COMPLETED)
       await (prisma as any).leadResponse.update({
         where: { id: lead.id },
         data: {
@@ -191,6 +209,7 @@ export async function handleIncomingDM(
         },
       });
 
+      // 🚀 Tembak hasil webhook external (Google Sheets, dll)
       const webhookUrl = automation.webhookDestinationUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
       if (webhookUrl) {
         fetch(webhookUrl, {
@@ -201,7 +220,7 @@ export async function handleIncomingDM(
             submittedAt: new Date().toISOString(),
             answers: currentAnswers,
           }),
-        }).catch((err) => console.error("Error webhook:", err));
+        }).catch((err) => console.error("Error webhook eksternal:", err));
       }
 
       await sendInstagramDM(
@@ -211,7 +230,6 @@ export async function handleIncomingDM(
       );
     }
   } catch (error) {
-    // Kalau ada error, bakal muncul di terminal lu!
     console.error("🔥 CRASH DI handleIncomingDM:", error);
   }
 }
