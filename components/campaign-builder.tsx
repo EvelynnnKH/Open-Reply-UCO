@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
+import CampaignPreview, { type PreviewTab } from "@/components/campaign-preview";
 
 export interface QuestionItem {
   id: string;
@@ -91,6 +92,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [loading, setLoading] = useState(mode === "edit");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewTab, setPreviewTab] = useState<PreviewTab>("dm");
 
   // 1. Fetch Instagram Accounts
   useEffect(() => {
@@ -310,33 +312,35 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   if (loading) return <div className="p-8 text-center text-muted">Memuat data campaign...</div>;
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-5xl mx-auto space-y-6 pb-12">
-      {/* Top Header */}
-      <div className="flex items-center justify-between border-b border-border pb-4">
-        <div>
-          <h1 className="text-xl font-bold">
-            {mode === "new" ? "New Campaign" : "Edit Campaign"}
-          </h1>
-          <p className="text-sm text-muted">
-            Atur postingan pemicu, kata kunci, follow gate, dan alur form interaktif.
-          </p>
+    <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 pb-12 items-start">
+      {/* BAGIAN KIRI: Form Builder */}
+      <form onSubmit={handleSubmit} className="flex-1 w-full space-y-6">
+        {/* Top Header */}
+        <div className="flex items-center justify-between border-b border-border pb-4">
+          <div>
+            <h1 className="text-xl font-bold">
+              {mode === "new" ? "New Campaign" : "Edit Campaign"}
+            </h1>
+            <p className="text-sm text-muted">
+              Atur postingan pemicu, kata kunci, follow gate, dan alur form interaktif.
+            </p>
+          </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+          >
+            {submitting ? "Saving..." : "Save Campaign"}
+          </button>
         </div>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
-        >
-          {submitting ? "Saving..." : "Save Campaign"}
-        </button>
-      </div>
 
       {error && (
-        <div className="p-3 rounded bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
-          {error}
-        </div>
-      )}
+          <div className="p-3 rounded bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+            {error}
+          </div>
+        )}
 
-      {/* 1. Pengaturan Utama & Akun */}
+        {/* 1. Pengaturan Utama & Akun */}
       <div className="panel rounded p-6 space-y-4">
         <h2 className="text-base font-semibold">1. Pengaturan Umum</h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -597,11 +601,53 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         )}
       </div>
 
-      {/* 5. Follow-Up Automated Reminders */}
+      {/* 5. Opening DM & Follow-Up Reminders */}
       <div className="panel rounded p-6 space-y-4">
-        <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold">5. Opening DM & Follow-Up Reminders</h2>
+
+        {/* Opening DM */}
+        <div className="flex items-center justify-between border-b border-border pb-3">
           <div>
-            <h2 className="text-base font-semibold">5. Follow-Up Reminders</h2>
+            <p className="text-sm font-medium">Pesan Pembuka (Opening DM)</p>
+            <p className="text-xs text-muted">Kirim sapaan awal dan tombol (Guaranteed Response) sebelum user masuk ke form pertanyaan.</p>
+          </div>
+          <input
+            type="checkbox"
+            checked={openingDmEnabled}
+            onChange={(e) => setOpeningDmEnabled(e.target.checked)}
+            className="w-5 h-5 accent-accent"
+          />
+        </div>
+
+        {openingDmEnabled && (
+          <div className="space-y-3 pl-4 border-l-2 border-accent">
+            <div>
+              <label className="block text-xs font-medium mb-1">Teks Sapaan Awal</label>
+              <textarea
+                value={openingDmMessage}
+                onChange={(e) => setOpeningDmMessage(e.target.value)}
+                placeholder="Terima kasih sudah tertarik dengan UC Online 👋 Silakan klik tombol di bawah untuk info lebih lengkap"
+                className="w-full rounded border border-border bg-background px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Label Tombol (Max 20 Karakter)</label>
+              <input
+                type="text"
+                value={openingDmButtonLabel}
+                onChange={(e) => setOpeningDmButtonLabel(e.target.value)}
+                placeholder="Info Lebih Lanjut"
+                maxLength={20}
+                className="w-full sm:w-1/2 rounded border border-border bg-background px-3 py-1.5 text-xs focus:outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Follow-Up Reminders */}
+        <div className="flex items-center justify-between pt-2">
+          <div>
+            <p className="text-sm font-medium">Follow-Up Reminders</p>
             <p className="text-xs text-muted">Kirim pesan pengingat otomatis jika user tidak membalas DM.</p>
           </div>
           <input
@@ -638,181 +684,216 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       </div>
 
       {/* 6. Interactive Lead Form Builder (Google Form Style) */}
-      <div className="panel rounded p-6 space-y-6 border-2 border-accent/30">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-accent">6. Interactive Lead Form Builder</h2>
-            <p className="text-xs text-muted">
-              Atur urutan pertanyaan dinamis. Jawaban user akan otomatis tersimpan sesuai variabelnya.
-            </p>
+        <div className="panel rounded p-6 space-y-6 border-2 border-accent/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-accent">6. Interactive Lead Form Builder</h2>
+              <p className="text-xs text-muted">
+                Atur urutan pertanyaan dinamis. Jawaban user akan otomatis tersimpan sesuai variabelnya.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={addQuestion}
+              className="px-3 py-1.5 text-xs font-semibold bg-accent text-white rounded hover:bg-accent-hover"
+            >
+              + Tambah Pesan / Pertanyaan
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={addQuestion}
-            className="px-3 py-1.5 text-xs font-semibold bg-accent text-white rounded hover:bg-accent-hover"
-          >
-            + Tambah Pesan / Pertanyaan
-          </button>
-        </div>
 
-        <div className="space-y-4">
-          {questions.map((q, qIdx) => (
-            <div key={q.id} className="p-4 rounded border border-border bg-surface space-y-4 relative">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-accent uppercase tracking-wider">
-                  Langkah #{qIdx + 1}
-                </span>
-                {questions.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeQuestion(qIdx)}
-                    className="text-xs text-red-400 hover:text-red-300 font-semibold"
-                  >
-                    Hapus
-                  </button>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs text-muted mb-1 font-medium">Teks Pesan / Pertanyaan</label>
-                <input
-                  type="text"
-                  value={q.label}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setQuestions((prev) => {
-                      const updated = [...prev];
-                      updated[qIdx].label = val;
-                      return updated;
-                    });
-                  }}
-                  placeholder="Misal: Boleh diinfokan Nama Lengkap Kakak ?"
-                  className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-accent"
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4 p-3 rounded bg-background border border-border text-xs">
-                <label className="flex items-center gap-2 cursor-pointer font-medium">
-                  <input
-                    type="radio"
-                    name={`isCollect_${q.id}`}
-                    checked={!q.isCollectAnswer}
-                    onChange={() => {
-                      setQuestions((prev) => {
-                        const updated = [...prev];
-                        updated[qIdx].isCollectAnswer = false;
-                        return updated;
-                      });
-                    }}
-                    className="accent-accent"
-                  />
-                  Hanya Pesan Informasi (Langsung Lanjut)
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer font-medium">
-                  <input
-                    type="radio"
-                    name={`isCollect_${q.id}`}
-                    checked={q.isCollectAnswer}
-                    onChange={() => {
-                      setQuestions((prev) => {
-                        const updated = [...prev];
-                        updated[qIdx].isCollectAnswer = true;
-                        return updated;
-                      });
-                    }}
-                    className="accent-accent"
-                  />
-                  Minta Jawaban User (Simpan ke Variable)
-                </label>
-              </div>
-
-              {q.isCollectAnswer && (
-                <div className="pl-4 border-l-2 border-accent space-y-3 pt-1">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-xs font-semibold text-muted mb-1">
-                        Simpan Jawaban ke Variable:
-                      </label>
-                      <input
-                        type="text"
-                        value={q.variableKey}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\s+/g, "_");
-                          setQuestions((prev) => {
-                            const updated = [...prev];
-                            updated[qIdx].variableKey = val;
-                            return updated;
-                          });
-                        }}
-                        placeholder="fullName, major, age, dll"
-                        className="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-accent"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-muted mb-1">Tipe Balasan User:</label>
-                      <div className="flex items-center gap-4 pt-1.5 text-xs">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`type_${q.id}`}
-                            checked={q.type === "text"}
-                            onChange={() => updateQuestionType(qIdx, "text")}
-                          />
-                          Teks Manual
-                        </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={`type_${q.id}`}
-                            checked={q.type === "button"}
-                            onChange={() => updateQuestionType(qIdx, "button")}
-                          />
-                          Tombol Quick Reply
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {q.type === "button" && (
-                    <div className="space-y-2 pt-2">
-                      <label className="block text-xs font-semibold text-muted">Daftar Pilihan Tombol:</label>
-                      {q.options.map((opt, optIdx) => (
-                        <div key={optIdx} className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={opt}
-                            onChange={(e) => updateOption(qIdx, optIdx, e.target.value)}
-                            placeholder={`Pilihan ${optIdx + 1}`}
-                            className="flex-1 rounded border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:border-accent"
-                          />
-                          {q.options.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeOption(qIdx, optIdx)}
-                              className="text-xs text-red-400"
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => addOption(qIdx)}
-                        className="text-xs text-accent hover:underline pt-1 block"
-                      >
-                        + Tambah Opsi Tombol
-                      </button>
-                    </div>
+          <div className="space-y-4">
+            {questions.map((q, qIdx) => (
+              <div key={q.id} className="p-4 rounded border border-border bg-surface space-y-4 relative">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-accent uppercase tracking-wider">
+                    Langkah #{qIdx + 1}
+                  </span>
+                  {questions.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeQuestion(qIdx)}
+                      className="text-xs text-red-400 hover:text-red-300 font-semibold"
+                    >
+                      Hapus
+                    </button>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
+
+                <div>
+                  <label className="block text-xs text-muted mb-1 font-medium">Teks Pesan / Pertanyaan</label>
+                  <input
+                    type="text"
+                    value={q.label}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setQuestions((prev) => {
+                        const updated = [...prev];
+                        updated[qIdx].label = val;
+                        return updated;
+                      });
+                    }}
+                    placeholder="Misal: Boleh diinfokan Nama Lengkap Kakak ?"
+                    className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 p-3 rounded bg-background border border-border text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium">
+                    <input
+                      type="radio"
+                      name={`isCollect_${q.id}`}
+                      checked={!q.isCollectAnswer}
+                      onChange={() => {
+                        setQuestions((prev) => {
+                          const updated = [...prev];
+                          updated[qIdx].isCollectAnswer = false;
+                          return updated;
+                        });
+                      }}
+                      className="accent-accent"
+                    />
+                    Hanya Pesan Informasi (Langsung Lanjut)
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer font-medium">
+                    <input
+                      type="radio"
+                      name={`isCollect_${q.id}`}
+                      checked={q.isCollectAnswer}
+                      onChange={() => {
+                        setQuestions((prev) => {
+                          const updated = [...prev];
+                          updated[qIdx].isCollectAnswer = true;
+                          return updated;
+                        });
+                      }}
+                      className="accent-accent"
+                    />
+                    Minta Jawaban User (Simpan ke Variable)
+                  </label>
+                </div>
+
+                {q.isCollectAnswer && (
+                  <div className="pl-4 border-l-2 border-accent space-y-3 pt-1">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-muted mb-1">
+                          Simpan Jawaban ke Variable:
+                        </label>
+                        <input
+                          type="text"
+                          value={q.variableKey}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\s+/g, "_");
+                            setQuestions((prev) => {
+                              const updated = [...prev];
+                              updated[qIdx].variableKey = val;
+                              return updated;
+                            });
+                          }}
+                          placeholder="fullName, major, age, dll"
+                          className="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-accent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-muted mb-1">Tipe Balasan User:</label>
+                        <div className="flex items-center gap-4 pt-1.5 text-xs">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`type_${q.id}`}
+                              checked={q.type === "text"}
+                              onChange={() => updateQuestionType(qIdx, "text")}
+                            />
+                            Teks Manual
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`type_${q.id}`}
+                              checked={q.type === "button"}
+                              onChange={() => updateQuestionType(qIdx, "button")}
+                            />
+                            Tombol Quick Reply
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    {q.type === "button" && (
+                      <div className="space-y-2 pt-2">
+                        <label className="block text-xs font-semibold text-muted">Daftar Pilihan Tombol:</label>
+                        {q.options.map((opt, optIdx) => (
+                          <div key={optIdx} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={opt}
+                              onChange={(e) => updateOption(qIdx, optIdx, e.target.value)}
+                              placeholder={`Pilihan ${optIdx + 1}`}
+                              className="flex-1 rounded border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:border-accent"
+                            />
+                            {q.options.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeOption(qIdx, optIdx)}
+                                className="text-xs text-red-400"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addOption(qIdx)}
+                          className="text-xs text-accent hover:underline pt-1 block"
+                        >
+                          + Tambah Opsi Tombol
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
+      </form>
+
+      {/* BAGIAN KANAN: Campaign Preview (HP) */}
+      <div className="w-full lg:w-[350px] sticky top-8 flex-shrink-0 flex justify-center">
+        <CampaignPreview
+          tab={previewTab}
+          onTabChange={setPreviewTab}
+          username={accounts.find(a => a.id === selectedAccountId)?.username || "instagram_user"}
+          avatarUrl={null} // Bisa lu ganti url foto profil kalau ada
+          postThumb={postUrl || null} 
+          caption=""
+          sampleComment={matchAnyWord ? "nice!" : keywords.split(",")[0] || "LINK"}
+          publicReplyEnabled={publicReplyEnabled}
+          publicReplyMessage={publicReplyMessages[0] || ""}
+          openingDmEnabled={openingDmEnabled}
+          openingDmMessage={openingDmMessage}
+          openingDmButtonLabel={openingDmButtonLabel}
+          requireFollow={requireFollow}
+          followPromptMessage={followPromptMessage}
+          followPromptButtonLabel={followPromptButtonLabel}
+          followUpEnabled={followUpEnabled}
+          followUpMessage={followUpMessage}
+          followUpDelayMinutes={followUpDelayMinutes}
+          questions={questions.length > 0 ? questions : [
+            {
+              id: "1",
+              label: "Lead Form DM",
+              isCollectAnswer: true,
+              variableKey: "answer",
+              type: "text",
+              options: [],
+            }
+          ]}
+        />
       </div>
-    </form>
+    </div>
   );
 }
