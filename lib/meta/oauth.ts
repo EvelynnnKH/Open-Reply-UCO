@@ -7,8 +7,8 @@ import {
 } from "crypto";
 import { getEncryptionKeyHex, requireEnv } from "@/lib/env";
 
-const INSTAGRAM_OAUTH_URL = "https://www.facebook.com/v19.0/dialog/oauth";
-const INSTAGRAM_TOKEN_URL = "https://graph.facebook.com/v19.0/oauth/access_token";
+const INSTAGRAM_OAUTH_URL = "https://api.instagram.com/oauth/authorize";
+const INSTAGRAM_TOKEN_URL = "https://api.instagram.com/oauth/access_token";
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
@@ -71,9 +71,10 @@ export function verifyOAuthState(state: string | null): OAuthStatePayload | null
 
 export function getAuthorizationUrl(redirectUri: string, state: string): string {
   const params = new URLSearchParams({
-    client_id: process.env.FACEBOOK_CLIENT_ID || requireEnv("INSTAGRAM_APP_ID"), // ganti pakai env Facebook App ID lu
+    client_id: requireEnv("INSTAGRAM_APP_ID"),
     redirect_uri: redirectUri,
-    scope: "pages_manage_messages,instagram_basic,instagram_manage_messages,pages_show_list",
+    scope:
+      "instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights",
     response_type: "code",
     state,
   });
