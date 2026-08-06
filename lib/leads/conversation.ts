@@ -70,51 +70,52 @@ export async function handleIncomingDM(
 ) {
   try {
     console.log("🔥 1. MASUK handleIncomingDM:", { senderId, messageText });
+
+    // 🚨 CEGAH PAYLOAD TOMBOL MASUK SEBAGAI JAWABAN TEKS
     if (messageText.startsWith("reveal:") || messageText.startsWith("followcheck:")) {
       console.log("⚠️ Mengabaikan postback payload di handleIncomingDM:", messageText);
       return;
     }
+
     // 1. Cari Instagram Account
     const account = await prisma.instagramAccount.findFirst({
       where: { accessToken },
       select: { id: true },
     });
-    console.log("🔥 2. ACCOUNT FOUND:", account);
     if (!account) return;
 
-    // 2. Cari Automation Aktif & Lead Form Nyala
+    // 2. Cari Automation Aktif & Lead Form Nyala (YANG QUESTIONS-NYA ADA ISINYA!)
     const automation = await prisma.automation.findFirst({
       where: { 
         instagramAccountId: account.id, 
         isActive: true, 
-        isLeadFormEnabled: true 
+        isLeadFormEnabled: true,
+        questions: { not: Prisma.JsonNull }
       },
       orderBy: { createdAt: "desc" },
     });
-    console.log("🔥 3. AUTOMATION FOUND:", automation?.id, "LeadFormEnabled:", automation?.isLeadFormEnabled);
-    if (!automation) return;
+    
+    if (!automation) {
+      console.log("🔥 ERROR: Nggak ada automation aktif yang punya list pertanyaan!");
+      return;
+    }
 
     // 3. Parse Questions dengan aman
     let questions: QuestionItem[] = [];
     try {
       if (typeof automation.questions === "string") {
         questions = JSON.parse(automation.questions);
-      } else if (automation.questions) {
+      } else if (Array.isArray(automation.questions)) {
         questions = automation.questions as unknown as QuestionItem[];
       }
-      console.log("gemini goblok0");
     } catch (err) {
       console.error("🔥 ERROR PARSE QUESTIONS:", err);
     }
 
-    console.log("gemini goblok1");
-    console.log("🔥 4. QUESTIONS LENGTH BERHASIL:", questions.length);
     if (!Array.isArray(questions) || questions.length === 0) {
-      console.log("gemini goblok2");
-      console.log("🔥 4.1 ERROR: QUESTIONS KOSONG!");
+      console.log("🔥 4.1 ERROR: QUESTIONS KOSONG ATAU GAGAL DI-PARSE!");
       return;
     }
-    console.log("gemini goblok3");
 
     // 4. Ambil / Buat record progres user (LeadResponse)
     let lead = await (prisma as any).leadResponse.findUnique({
