@@ -1,3 +1,4 @@
+import { Prisma } from "@/app/generated/prisma/browser";
 import { prisma } from "@/lib/db/client";
 
 export interface QuestionItem {
@@ -100,7 +101,8 @@ export async function handleIncomingDM(
     if (!account) return;
 
     const automation = await prisma.automation.findFirst({
-      where: { instagramAccountId: account.id, isActive: true, isLeadFormEnabled: true },
+      where: { instagramAccountId: account.id, isActive: true, isLeadFormEnabled: true, questions: { not: Prisma.JsonNull }},
+      orderBy: { createdAt: "desc" },
     });
 
     if (!automation) return;
