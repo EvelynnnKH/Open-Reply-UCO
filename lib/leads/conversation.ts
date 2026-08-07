@@ -88,7 +88,7 @@ async function sendQuestionStep(
 export async function handleIncomingDM(
   senderId: string,
   messageText: string,
-  accessToken: string
+  incomingAccessToken: string
 ) {
   try {
     console.log("🔥 1. MASUK handleIncomingDM:", { senderId, messageText });
@@ -101,24 +101,36 @@ export async function handleIncomingDM(
 
     // 1. Cari Instagram Account (Pencarian DB harus pakai token yang masih terenkripsi)
     const account = await prisma.instagramAccount.findFirst({
-      where: { accessToken },
-      select: { id: true, instagramID: true },
+      where: { accessToken: incomingAccessToken },
+      select: { id: true, instagramID: true, accessToken: true },
     });
-    if (!account) return;
+    if (!account) {
+      console.log("🔥 ERROR: Akun Instagram tidak ditemukan di database!");
+      return;
+    }
 
     // ✅ DECRYPT TOKEN DENGAN PINTAR
+    let accessToken = "";
     try {
-      // Cek apakah token masih terenkripsi atau sudah format EAA/IG
-      if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
-        accessToken = decryptToken(accessToken);
-      }
+      accessToken = decryptToken(account.accessToken);
       accessToken = accessToken.replace(/['"]/g, '').trim();
-      console.log("🔥 TOKEN AMAN KE META:", accessToken.substring(0, 15) + "...");
+      console.log("🔥 TOKEN AMAN KE META (SUKSES DECRYPT):", accessToken.substring(0, 15) + "...");
     } catch (err) {
-      console.error("🔥 Gagal decrypt token:", err);
-      return; // Kalau gagal decrypt, langsung hentikan supaya tidak ngirim request ngawur ke Meta
+      console.error("🔥 Gagal total decrypt token:", err);
+      return;
     }
-    
+    // try {
+    //   // Cek apakah token masih terenkripsi atau sudah format EAA/IG
+    //   if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
+    //     accessToken = decryptToken(accessToken);
+    //   }
+    //   accessToken = accessToken.replace(/['"]/g, '').trim();
+    //   console.log("🔥 TOKEN AMAN KE META:", accessToken.substring(0, 15) + "...");
+    // } catch (err) {
+    //   console.error("🔥 Gagal decrypt token:", err);
+    //   return; // Kalau gagal decrypt, langsung hentikan supaya tidak ngirim request ngawur ke Meta
+    // }
+
     // 2. Cari Automation Aktif & Lead Form Nyala (YANG QUESTIONS-NYA ADA ISINYA!)
     const automation = await prisma.automation.findFirst({
       where: { 
