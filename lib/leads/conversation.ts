@@ -287,7 +287,7 @@ export async function handleIncomingDM(
 
       await sendInstagramDM(
         senderId,
-        "Terima kasih banyak! Data Anda telah berhasil tersimpan. 🙏",
+        "Terima kasih, Tim kami akan menghubungi anda",
         accessToken,
         account.instagramId
       );

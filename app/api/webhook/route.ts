@@ -178,6 +178,13 @@ export async function POST(request: NextRequest) {
     );
 
     for (const event of postbackEvents) {
+      
+      if (
+        event.payload && 
+        (event.payload.startsWith("S1 ") || event.payload.startsWith("S2 ") || event.payload.includes("jurusan"))
+      ) {
+        continue; // Lewati, biarkan handleIncomingDM saja yang urus!
+      }
       await queue.add(
         POSTBACK_JOB_NAME,
         {
