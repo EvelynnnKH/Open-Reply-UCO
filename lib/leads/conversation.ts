@@ -1,6 +1,7 @@
 import { Prisma } from "@/app/generated/prisma/browser";
 import { prisma } from "@/lib/db/client";
 import { decryptToken } from "@/lib/meta/oauth";
+import { sendDirectMessage } from "@/lib/meta/client";
 
 export interface QuestionItem {
   id: string;
@@ -19,6 +20,22 @@ async function sendInstagramDM(
   instagramAccountId: string,
   quickReplies?: Array<{ title: string; payload: string }>
 ) {
+  try {
+    console.log(`🚀 Mencoba kirim pesan ke ${recipientId} pakai fungsi bawaan...`);
+    console.log(`🔍 ID Akun Pengirim: ${instagramAccountId}`); // Biar kita tau ID-nya bener ga
+
+    // KITA BYPASS DULU QUICK REPLIES, KITA TEST TEXT NYA AJA PAKE FUNGSI BAWAAN OPENREPLY
+    await sendDirectMessage(
+      accessToken,
+      instagramAccountId,
+      recipientId,
+      text
+    );
+
+    console.log(`✅ [BERHASIL] Pesan "${text}" terkirim!`);
+  } catch (error) {
+    console.error("❌ [GAGAL] Fungsi bawaan juga error:", error);
+  }
   const messagePayload: Record<string, unknown> = { text };
 
   if (quickReplies && quickReplies.length > 0) {
