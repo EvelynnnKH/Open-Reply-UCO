@@ -85,7 +85,6 @@ export async function handleIncomingDM(
     });
     if (!account) return;
 
-    // ✅ DECRYPT TOKEN DI SINI SEBELUM DIKIRIM KE FACEBOOK API!
     // ✅ DECRYPT TOKEN DENGAN PINTAR
     try {
       // 1. Hilangkan spasi/enter bawaan dari database
@@ -97,7 +96,7 @@ export async function handleIncomingDM(
       }
       
       // 3. Hilangkan spasi lagi jaga-jaga hasil decrypt kotor
-      accessToken = accessToken.trim(); 
+      accessToken = accessToken.replace(/['"]/g, '').trim();
       
       console.log("🔥 TOKEN AMAN KE META:", accessToken.substring(0, 15) + "...");
     } catch (err) {
