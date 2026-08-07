@@ -79,30 +79,30 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const entries = (payload as any)?.entry || [];
-    for (const entry of entries) {
-      const messagings = entry?.messaging || [];
-      for (const messagingEvent of messagings) {
-        if (messagingEvent.message && messagingEvent.message.text && !messagingEvent.is_echo) 
-        {
-          const senderId = messagingEvent?.sender?.id;
-          const recipientId = messagingEvent?.recipient?.id;
-          const messageText = messagingEvent?.message?.text || messagingEvent?.postback?.payload;
+  // const entries = (payload as any)?.entry || [];
+  //   for (const entry of entries) {
+  //     const messagings = entry?.messaging || [];
+  //     for (const messagingEvent of messagings) {
+  //       if (messagingEvent.message && messagingEvent.message.text && !messagingEvent.is_echo) 
+  //       {
+  //         const senderId = messagingEvent?.sender?.id;
+  //         const recipientId = messagingEvent?.recipient?.id;
+  //         const messageText = messagingEvent?.message?.text || messagingEvent?.postback?.payload;
 
-          if (senderId && recipientId && messageText) {
-            console.log(`[Webhook] Menerima DM dari ${senderId}: "${messageText}"`);
-            const account = await prisma.instagramAccount.findUnique({
-              where: { instagramId: recipientId },
-              select: { accessToken: true , id: true, instagramId: true},
-            });
+  //         if (senderId && recipientId && messageText) {
+  //           console.log(`[Webhook] Menerima DM dari ${senderId}: "${messageText}"`);
+  //           const account = await prisma.instagramAccount.findUnique({
+  //             where: { instagramId: recipientId },
+  //             select: { accessToken: true , id: true, instagramId: true},
+  //           });
 
-            if (account?.accessToken) {
-              await handleIncomingDM(senderId, messageText, account.accessToken);
-            }
-          }
-        }
-      }
-    }
+  //           if (account?.accessToken) {
+  //             await handleIncomingDM(senderId, messageText, account.accessToken);
+  //           }
+  //         }
+  //       }
+  //     }
+  //   }
 
   try {
     const commentEvents = parseCommentEvents(
@@ -137,6 +137,38 @@ export async function POST(request: NextRequest) {
           where: { id: webhookEvent.id },
           data: { workspaceId: account.workspaceId },
         });
+      }
+    }
+
+    const entries = (payload as any)?.entry || [];
+    for (const entry of entries) {
+      const messagings = entry?.messaging || [];
+      for (const messagingEvent of messagings) {
+        // Abaikan pesan dari bot sendiri (echo)
+        if (messagingEvent?.message?.is_echo) continue;
+
+        const senderId = messagingEvent?.sender?.id;
+        const recipientId = messagingEvent?.recipient?.id;
+        
+        // Ambil teks dari pesan biasa ATAU payload dari tombol/quick replies
+        const messageText = 
+          messagingEvent?.message?.text || 
+          messagingEvent?.postback?.payload ||
+          messagingEvent?.message?.quick_reply?.payload;
+
+        if (senderId && recipientId && messageText) {
+          console.log(`[Webhook LeadForm] Menerima input dari ${senderId}: "${messageText}"`);
+          
+          const account = await prisma.instagramAccount.findUnique({
+            where: { instagramId: recipientId },
+            select: { accessToken: true, id: true, instagramId: true },
+          });
+
+          if (account?.accessToken) {
+            // Panggil state machine kamu HANYA DI SINI secara tunggal (tidak dobel)
+            await handleIncomingDM(senderId, messageText, account.accessToken);
+          }
+        }
       }
     }
 
