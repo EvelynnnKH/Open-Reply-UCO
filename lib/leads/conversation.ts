@@ -13,6 +13,7 @@ export interface QuestionItem {
 }
 
 // Helper internal untuk mengirim DM via Instagram Graph API
+// Helper internal untuk mengirim DM via Instagram Graph API
 async function sendInstagramDM(
   recipientId: string,
   text: string,
@@ -21,10 +22,9 @@ async function sendInstagramDM(
   quickReplies?: Array<{ title: string; payload: string }>
 ) {
   try {
-    console.log(`🚀 Mencoba kirim pesan ke ${recipientId} pakai fungsi bawaan...`);
-    console.log(`🔍 ID Akun Pengirim: ${instagramAccountId}`); // Biar kita tau ID-nya bener ga
-
-    // KITA BYPASS DULU QUICK REPLIES, KITA TEST TEXT NYA AJA PAKE FUNGSI BAWAAN OPENREPLY
+    console.log(`🚀 Mengirim pesan ke ${recipientId} via fungsi resmi...`);
+    
+    // Cukup gunakan fungsi bawaan OpenReply untuk menghindari pengiriman dobel & error token
     await sendDirectMessage(
       accessToken,
       instagramAccountId,
@@ -34,37 +34,7 @@ async function sendInstagramDM(
 
     console.log(`✅ [BERHASIL] Pesan "${text}" terkirim!`);
   } catch (error) {
-    console.error("❌ [GAGAL] Fungsi bawaan juga error:", error);
-  }
-  const messagePayload: Record<string, unknown> = { text };
-
-  if (quickReplies && quickReplies.length > 0) {
-    messagePayload.quick_replies = quickReplies.map((qr) => ({
-      content_type: "text",
-      title: qr.title.substring(0, 20), 
-      payload: qr.payload,
-    }));
-  }
-
-  const baseUrl = "https://graph.instagram.com/v19.0";
-
-  const response = await fetch(`${baseUrl}/${instagramAccountId}/messages`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      recipient: { id: recipientId },
-      message: messagePayload,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    console.error("Failed to send Instagram DM:", errorData);
-  } else {
-    console.log(`[Berhasil] Pesan terkirim ke ${recipientId}!`);
+    console.error("❌ [GAGAL] Gagal mengirim Instagram DM:", error);
   }
 }
 
