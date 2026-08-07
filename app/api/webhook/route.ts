@@ -83,19 +83,22 @@ export async function POST(request: NextRequest) {
     for (const entry of entries) {
       const messagings = entry?.messaging || [];
       for (const messagingEvent of messagings) {
-        const senderId = messagingEvent?.sender?.id;
-        const recipientId = messagingEvent?.recipient?.id;
-        const messageText = messagingEvent?.message?.text || messagingEvent?.postback?.payload;
-        const isEcho = messagingEvent?.message?.is_echo;
+        if (messagingEvent.message && messagingEvent.message.text && !messagingEvent.is_echo) 
+        {
+          const senderId = messagingEvent?.sender?.id;
+          const recipientId = messagingEvent?.recipient?.id;
+          const messageText = messagingEvent?.message?.text || messagingEvent?.postback?.payload;
 
-        if (senderId && recipientId && messageText && !isEcho) {
-          const account = await prisma.instagramAccount.findUnique({
-            where: { instagramId: recipientId },
-            select: { accessToken: true },
-          });
+          if (senderId && recipientId && messageText) {
+            console.log(`[Webhook] Menerima DM dari ${senderId}: "${messageText}"`);
+            const account = await prisma.instagramAccount.findUnique({
+              where: { instagramId: recipientId },
+              select: { accessToken: true , id: true},
+            });
 
-          if (account?.accessToken) {
-            await handleIncomingDM(senderId, messageText, account.accessToken);
+            if (account?.accessToken) {
+              await handleIncomingDM(senderId, messageText, account.accessToken);
+            }
           }
         }
       }
