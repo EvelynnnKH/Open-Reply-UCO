@@ -12,6 +12,7 @@ export interface QuestionItem {
   options?: string[];
 }
 
+// Helper internal untuk mengirim DM via Instagram Graph API (Mendukung Teks & Quick Replies)
 async function sendInstagramDM(
   recipientId: string,
   text: string,
@@ -20,19 +21,41 @@ async function sendInstagramDM(
   quickReplies?: Array<{ title: string; payload: string }>
 ) {
   try {
-    console.log(`🚀 Mengirim pesan ke ${recipientId} via fungsi resmi...`);
-    
-    // Cukup gunakan fungsi bawaan OpenReply untuk menghindari pengiriman dobel & error token
-    await sendDirectMessage(
-      accessToken,
-      instagramAccountId,
-      recipientId,
-      text
-    );
+    console.log(`🚀 Mengirim pesan ke ${recipientId} dengan ${quickReplies ? quickReplies.length : 0} pilihan tombol...`);
 
-    console.log(`✅ [BERHASIL] Pesan "${text}" terkirim!`);
+    const messagePayload: Record<string, unknown> = { text };
+
+    // Jika ada pilihan ganda/quick replies, masukkan ke payload
+    if (quickReplies && quickReplies.length > 0) {
+      messagePayload.quick_replies = quickReplies.map((qr) => ({
+        content_type: "text",
+        title: qr.title.substring(0, 20), // Batas maksimal karakter title dari Meta adalah 20!
+        payload: qr.payload,
+      }));
+    }
+
+    const baseUrl = "https://graph.instagram.com/v19.0";
+
+    const response = await fetch(`${baseUrl}/${instagramAccountId}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: messagePayload,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Failed to send Instagram DM:", errorData);
+    } else {
+      console.log(`✅ [BERHASIL] Pesan dan tombol terkirim ke ${recipientId}!`);
+    }
   } catch (error) {
-    console.error("❌ [GAGAL] Gagal mengirim Instagram DM:", error);
+    console.error("❌ [GAGAL] Crash saat mengirim DM:", error);
   }
 }
 
