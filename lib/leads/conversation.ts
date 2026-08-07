@@ -92,9 +92,9 @@ export async function handleIncomingDM(
       accessToken = accessToken.trim(); 
       
       // 2. Cek apakah butuh decrypt
-      // if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
-      //   accessToken = decryptToken(accessToken);
-      // }
+      if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
+        accessToken = decryptToken(accessToken);
+      }
       
       // 3. Hilangkan spasi lagi jaga-jaga hasil decrypt kotor
       accessToken = accessToken.trim(); 
