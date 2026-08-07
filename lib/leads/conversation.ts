@@ -16,6 +16,7 @@ async function sendInstagramDM(
   recipientId: string,
   text: string,
   accessToken: string,
+  instagramAccountId: string,
   quickReplies?: Array<{ title: string; payload: string }>
 ) {
   const messagePayload: Record<string, unknown> = { text };
@@ -23,14 +24,14 @@ async function sendInstagramDM(
   if (quickReplies && quickReplies.length > 0) {
     messagePayload.quick_replies = quickReplies.map((qr) => ({
       content_type: "text",
-      title: qr.title,
+      title: qr.title.substring(0, 20), 
       payload: qr.payload,
     }));
   }
 
-  const baseUrl = "https://graph.facebook.com/v19.0";
+  const baseUrl = "https://graph.instagram.com/v19.0";
 
-  const response = await fetch(`${baseUrl}/me/messages`, {
+  const response = await fetch(`${baseUrl}/${instagramAccountId}/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -45,6 +46,8 @@ async function sendInstagramDM(
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     console.error("Failed to send Instagram DM:", errorData);
+  } else {
+    console.log(`[Berhasil] Pesan terkirim ke ${recipientId}!`);
   }
 }
 
@@ -52,7 +55,8 @@ async function sendInstagramDM(
 async function sendQuestionStep(
   senderId: string,
   question: QuestionItem,
-  accessToken: string
+  accessToken: string,
+  instagramAccountId: string
 ) {
   const quickReplies =
     question.type === "button" && question.options
@@ -61,7 +65,7 @@ async function sendQuestionStep(
           .map((opt) => ({ title: opt, payload: opt }))
       : undefined;
 
-  await sendInstagramDM(senderId, question.label, accessToken, quickReplies);
+  await sendInstagramDM(senderId, question.label, accessToken, instagramAccountId, quickReplies);
 }
 
 export async function handleIncomingDM(
@@ -81,7 +85,7 @@ export async function handleIncomingDM(
     // 1. Cari Instagram Account (Pencarian DB harus pakai token yang masih terenkripsi)
     const account = await prisma.instagramAccount.findFirst({
       where: { accessToken },
-      select: { id: true },
+      select: { id: true, instagramID: true },
     });
     if (!account) return;
 
@@ -170,7 +174,7 @@ export async function handleIncomingDM(
         currentIndex < questions.length &&
         !questions[currentIndex].isCollectAnswer
       ) {
-        await sendQuestionStep(senderId, questions[currentIndex], accessToken);
+        await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramID);
         currentIndex++;
       }
 
@@ -186,7 +190,7 @@ export async function handleIncomingDM(
         messageText.trim().toLowerCase() === automation.openingDmButtonLabel.trim().toLowerCase();
 
       if (currentIndex < questions.length && !isClickingOpeningButton) {
-        await sendQuestionStep(senderId, questions[currentIndex], accessToken);
+        await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramID);
       }
       return;
     }
@@ -216,7 +220,7 @@ export async function handleIncomingDM(
       stepIndex < questions.length &&
       !questions[stepIndex].isCollectAnswer
     ) {
-      await sendQuestionStep(senderId, questions[stepIndex], accessToken);
+      await sendQuestionStep(senderId, questions[stepIndex], accessToken, account.instagramID);
       stepIndex++;
     }
 
@@ -231,7 +235,7 @@ export async function handleIncomingDM(
       });
 
       // 🚀 KIRIM PERTANYAAN BERIKUTNYA!
-      await sendQuestionStep(senderId, questions[stepIndex], accessToken);
+      await sendQuestionStep(senderId, questions[stepIndex], accessToken, account.instagramID);
     } else {
       // SEMUA SELESAI
       await (prisma as any).leadResponse.update({
@@ -259,7 +263,8 @@ export async function handleIncomingDM(
       await sendInstagramDM(
         senderId,
         "Terima kasih banyak! Data Anda telah berhasil tersimpan. 🙏",
-        accessToken
+        accessToken,
+        account.instagramID
       );
     }
   } catch (error) {
