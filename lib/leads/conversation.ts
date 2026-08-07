@@ -102,7 +102,7 @@ export async function handleIncomingDM(
     // 1. Cari Instagram Account (Pencarian DB harus pakai token yang masih terenkripsi)
     const account = await prisma.instagramAccount.findFirst({
       where: { accessToken: incomingAccessToken },
-      select: { id: true, instagramID: true, accessToken: true },
+      select: { id: true, instagramId: true, accessToken: true },
     });
     if (!account) {
       console.log("🔥 ERROR: Akun Instagram tidak ditemukan di database!");
@@ -199,7 +199,7 @@ export async function handleIncomingDM(
         currentIndex < questions.length &&
         !questions[currentIndex].isCollectAnswer
       ) {
-        await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramID);
+        await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramId);
         currentIndex++;
       }
 
@@ -215,7 +215,7 @@ export async function handleIncomingDM(
         messageText.trim().toLowerCase() === automation.openingDmButtonLabel.trim().toLowerCase();
 
       if (currentIndex < questions.length && !isClickingOpeningButton) {
-        await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramID);
+        await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramId);
       }
       return;
     }
@@ -245,7 +245,7 @@ export async function handleIncomingDM(
       stepIndex < questions.length &&
       !questions[stepIndex].isCollectAnswer
     ) {
-      await sendQuestionStep(senderId, questions[stepIndex], accessToken, account.instagramID);
+      await sendQuestionStep(senderId, questions[stepIndex], accessToken, account.instagramId);
       stepIndex++;
     }
 
@@ -260,7 +260,7 @@ export async function handleIncomingDM(
       });
 
       // 🚀 KIRIM PERTANYAAN BERIKUTNYA!
-      await sendQuestionStep(senderId, questions[stepIndex], accessToken, account.instagramID);
+      await sendQuestionStep(senderId, questions[stepIndex], accessToken, account.instagramId);
     } else {
       // SEMUA SELESAI
       await (prisma as any).leadResponse.update({
@@ -289,7 +289,7 @@ export async function handleIncomingDM(
         senderId,
         "Terima kasih banyak! Data Anda telah berhasil tersimpan. 🙏",
         accessToken,
-        account.instagramID
+        account.instagramId
       );
     }
   } catch (error) {
