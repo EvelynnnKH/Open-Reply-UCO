@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
             console.log(`[Webhook] Menerima DM dari ${senderId}: "${messageText}"`);
             const account = await prisma.instagramAccount.findUnique({
               where: { instagramId: recipientId },
-              select: { accessToken: true , id: true},
+              select: { accessToken: true , id: true, instagramId: true},
             });
 
             if (account?.accessToken) {

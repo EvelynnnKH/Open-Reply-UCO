@@ -108,21 +108,17 @@ export async function handleIncomingDM(
 
     // ✅ DECRYPT TOKEN DENGAN PINTAR
     try {
-      // 1. Hilangkan spasi/enter bawaan dari database
-      accessToken = accessToken.trim(); 
-      
-      // 2. Cek apakah butuh decrypt
+      // Cek apakah token masih terenkripsi atau sudah format EAA/IG
       if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
         accessToken = decryptToken(accessToken);
       }
-      
-      // 3. Hilangkan spasi lagi jaga-jaga hasil decrypt kotor
       accessToken = accessToken.replace(/['"]/g, '').trim();
-      
       console.log("🔥 TOKEN AMAN KE META:", accessToken.substring(0, 15) + "...");
     } catch (err) {
       console.error("🔥 Gagal decrypt token:", err);
+      return; // Kalau gagal decrypt, langsung hentikan supaya tidak ngirim request ngawur ke Meta
     }
+    
     // 2. Cari Automation Aktif & Lead Form Nyala (YANG QUESTIONS-NYA ADA ISINYA!)
     const automation = await prisma.automation.findFirst({
       where: { 
