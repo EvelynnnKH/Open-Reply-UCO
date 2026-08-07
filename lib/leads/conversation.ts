@@ -264,16 +264,29 @@ export async function handleIncomingDM(
       });
 
       const webhookUrl = automation.webhookDestinationUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+      
       if (webhookUrl) {
-        fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            instagramUserId: senderId,
-            submittedAt: new Date().toISOString(),
-            answers: currentAnswers,
-          }),
-        }).catch((err) => console.error("Error webhook:", err));
+        try {
+          const response = await fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              instagramUserId: senderId,
+              submittedAt: new Date().toISOString(),
+              answers: currentAnswers, 
+            }),
+          });
+
+          if (!response.ok) {
+            console.error("Gagal mengirim data ke Google Sheets:", await response.text());
+          } else {
+            console.log("✅ Data lead berhasil dikirim ke Google Sheets!");
+          }
+        } catch (err) {
+          console.error("Error saat fetch webhook Google Sheets:", err);
+        }
+      } else {
+        console.warn("⚠️ Google Sheets Webhook URL belum diatur di Automation atau .env!");
       }
 
       await sendInstagramDM(
