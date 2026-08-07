@@ -12,8 +12,6 @@ export interface QuestionItem {
   options?: string[];
 }
 
-// Helper internal untuk mengirim DM via Instagram Graph API
-// Helper internal untuk mengirim DM via Instagram Graph API
 async function sendInstagramDM(
   recipientId: string,
   text: string,
