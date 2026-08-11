@@ -165,21 +165,15 @@ export async function handleIncomingDM(
       },
     });
 
-    // JIKA USER BARU / MEMULAI DARI AWAL
-    if (!lead || lead.isCompleted) {
-      lead = await (prisma as any).leadResponse.upsert({
-        where: {
-          automationId_instagramUserId: {
-            automationId: automation.id,
-            instagramUserId: senderId,
-          },
-        },
-        update: { currentStepIndex: 0, answers: {}, isCompleted: false },
-        create: {
+    // JIKA USER BELUM PERNAH ADA SAMA SEKALI
+    if (!lead) {
+      lead = await (prisma as any).leadResponse.create({
+        data: {
           automationId: automation.id,
           instagramUserId: senderId,
           currentStepIndex: 0,
           answers: {},
+          isCompleted: false,
         },
       });
 
@@ -209,6 +203,13 @@ export async function handleIncomingDM(
         await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramId);
       }
       return;
+    }
+
+    // JIKA USER SEBENARNYA SUDAH SELESAI (isCompleted == true)
+    if (lead.isCompleted) {
+      console.log("⚠️ User ini sudah menyelesaikan form sebelumnya. Mengabaikan pesan bebas:", messageText);
+      // Opsional: Kamu bisa balasi "Halo Kak, data Kakak sebelumnya sudah kami terima. 🙏" atau diamkan saja.
+      return; 
     }
 
     // JIKA USER MEMBALAS PERTANYAAN (FLOW BERJALAN)
@@ -287,6 +288,32 @@ export async function handleIncomingDM(
         }
       } else {
         console.warn("⚠️ Google Sheets Webhook URL belum diatur di Automation atau .env!");
+      }
+
+      const webhookUrlIntegrately = automation.webhookDestinationUrlIntegrately || process.env.INTEGRATELY_WEBHOOK_URL;
+      
+      if (webhookUrlIntegrately) {
+        try {
+          const responseIntegrately = await fetch(webhookUrlIntegrately, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              instagramUserId: senderId,
+              submittedAt: new Date().toISOString(),
+              answers: currentAnswers, 
+            }),
+          });
+
+          if (!responseIntegrately.ok) {
+            console.error("Gagal mengirim data ke Integrately:", await responseIntegrately.text());
+          } else {
+            console.log("✅ Data lead berhasil dikirim ke Integrately!");
+          }
+        } catch (err) {
+          console.error("Error saat fetch webhook Integrately:", err);
+        }
+      } else {
+        console.warn("⚠️ Integrately Webhook URL belum diatur di Automation atau .env!");
       }
 
       await sendInstagramDM(

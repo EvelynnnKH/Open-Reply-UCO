@@ -214,9 +214,10 @@ model Automation {
   @@index([postId])
 
   //tambahan
-  isLeadFormEnabled     Boolean  @default(true)
-  questions             Json?    // Menyimpan array pertanyaan & opsi button
-  webhookDestinationUrl String?  // Webhook tujuan ke Google Sheets / Integrately
+  isLeadFormEnabled                 Boolean  @default(true)
+  questions                         Json?    // Menyimpan array pertanyaan & opsi button
+  webhookDestinationUrl             String?  // Webhook tujuan ke Google Sheets / Integrately
+  webhookDestinationUrlIntegrately  String?
   
   leadResponses         LeadResponse[]
 }
