@@ -264,6 +264,21 @@ export async function handleIncomingDM(
         },
       });
 
+      // MAPPING SEBELUM DIKIRIM WEBHOOK
+      const majorCodeMap: Record<string, string> = {
+        "International Business Manajemen (IBM)": "a00Mg00000NLp7GIAT",
+        "Informatika (IMT)": "a00Mg00000NLnISIA1",
+        "Magister Manajemen (MEM)": "a00Mg00000NLnGmIAL",
+      };
+      const processedAnswers = { ...currentAnswers };
+
+      for (const key in processedAnswers) {
+        const answerValue = processedAnswers[key];
+        if (typeof answerValue === "string" && majorCodeMap[answerValue]) {
+          processedAnswers[key] = majorCodeMap[answerValue];
+        }
+      }
+
       const webhookUrl = automation.webhookDestinationUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
       
       if (webhookUrl) {
@@ -274,7 +289,7 @@ export async function handleIncomingDM(
             body: JSON.stringify({
               instagramUserId: senderId,
               submittedAt: new Date().toISOString(),
-              answers: currentAnswers, 
+              answers: processedAnswers, 
             }),
           });
 
@@ -298,7 +313,7 @@ export async function handleIncomingDM(
           "Source": "instagram_dm",
           "Time Submitted": new Date().toISOString(),
           "Instagram User ID": senderId,
-          ...currentAnswers // Titik tiga ini (spread operator) akan mengeluarkan semua isi jawaban ke luar
+          ...processedAnswers // Titik tiga ini (spread operator) akan mengeluarkan semua isi jawaban ke luar
         };
 
         try {
