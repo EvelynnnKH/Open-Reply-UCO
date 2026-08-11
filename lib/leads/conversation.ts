@@ -279,31 +279,31 @@ export async function handleIncomingDM(
         }
       }
 
-      const webhookUrl = automation.webhookDestinationUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+      // const webhookUrl = automation.webhookDestinationUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
       
-      if (webhookUrl) {
-        try {
-          const response = await fetch(webhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              instagramUserId: senderId,
-              submittedAt: new Date().toISOString(),
-              answers: processedAnswers, 
-            }),
-          });
+      // if (webhookUrl) {
+      //   try {
+      //     const response = await fetch(webhookUrl, {
+      //       method: "POST",
+      //       headers: { "Content-Type": "application/json" },
+      //       body: JSON.stringify({
+      //         instagramUserId: senderId,
+      //         submittedAt: new Date().toISOString(),
+      //         answers: processedAnswers, 
+      //       }),
+      //     });
 
-          if (!response.ok) {
-            console.error("Gagal mengirim data ke Google Sheets:", await response.text());
-          } else {
-            console.log("✅ Data lead berhasil dikirim ke Google Sheets!");
-          }
-        } catch (err) {
-          console.error("Error saat fetch webhook Google Sheets:", err);
-        }
-      } else {
-        console.warn("⚠️ Google Sheets Webhook URL belum diatur di Automation atau .env!");
-      }
+      //     if (!response.ok) {
+      //       console.error("Gagal mengirim data ke Google Sheets:", await response.text());
+      //     } else {
+      //       console.log("✅ Data lead berhasil dikirim ke Google Sheets!");
+      //     }
+      //   } catch (err) {
+      //     console.error("Error saat fetch webhook Google Sheets:", err);
+      //   }
+      // } else {
+      //   console.warn("⚠️ Google Sheets Webhook URL belum diatur di Automation atau .env!");
+      // }
 
       const webhookUrlIntegrately = automation.webhookDestinationUrlIntegrately || process.env.INTEGRATELY_WEBHOOK_URL;
       
