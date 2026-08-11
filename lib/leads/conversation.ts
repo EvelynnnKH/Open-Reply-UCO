@@ -266,9 +266,9 @@ export async function handleIncomingDM(
 
       // MAPPING SEBELUM DIKIRIM WEBHOOK
       const majorCodeMap: Record<string, string> = {
-        "International Business Manajemen (IBM)": "a00Mg00000NLp7GIAT",
-        "Informatika (IMT)": "a00Mg00000NLnISIA1",
-        "Magister Manajemen (MEM)": "a00Mg00000NLnGmIAL",
+        "S1 Manajemen": "a00Mg00000NLp7GIAT",
+        "S1 Informatika": "a00Mg00000NLnISIA1",
+        "S2 Manajemen": "a00Mg00000NLnGmIAL",
       };
       const processedAnswers = { ...currentAnswers };
 
