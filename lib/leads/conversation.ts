@@ -293,21 +293,25 @@ export async function handleIncomingDM(
       const webhookUrlIntegrately = automation.webhookDestinationUrlIntegrately || process.env.INTEGRATELY_WEBHOOK_URL;
       
       if (webhookUrlIntegrately) {
+        // 1. Susun data rapi untuk Integrately
+        const integratelyPayload = {
+          "Source": "instagram_dm",
+          "Time Submitted": new Date().toISOString(),
+          "Instagram User ID": senderId,
+          ...currentAnswers // Titik tiga ini (spread operator) akan mengeluarkan semua isi jawaban ke luar
+        };
+
         try {
           const responseIntegrately = await fetch(webhookUrlIntegrately, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              instagramUserId: senderId,
-              submittedAt: new Date().toISOString(),
-              answers: currentAnswers, 
-            }),
+            body: JSON.stringify(integratelyPayload), // Gunakan payload yang sudah disusun
           });
 
           if (!responseIntegrately.ok) {
             console.error("Gagal mengirim data ke Integrately:", await responseIntegrately.text());
           } else {
-            console.log("✅ Data lead berhasil dikirim ke Integrately!");
+            console.log("✅ Data lead berhasil dikirim ke Integrately!", integratelyPayload);
           }
         } catch (err) {
           console.error("Error saat fetch webhook Integrately:", err);
