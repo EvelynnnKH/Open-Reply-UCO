@@ -87,6 +87,14 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       type: "button",
       options: ["S1 Informatika", "S1 Manajemen", "S2 Manajemen"],
     },
+    {
+      id: "3",
+      label: "Apakah ada nomor WhatsApp yang bisa dihubungi?",
+      isCollectAnswer: true,
+      variableKey: "phoneNumber",
+      type: "text",
+      options: [],
+    },
   ]);
 
   const [loading, setLoading] = useState(mode === "edit");
