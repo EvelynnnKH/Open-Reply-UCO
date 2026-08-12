@@ -311,7 +311,7 @@ export async function handleIncomingDM(
       if (webhookUrlIntegrately) {
         // 1. Susun data rapi untuk Integrately
         const integratelyPayload = {
-          "Source": "instagram_dm",
+          "Source": "dm_instagram",
           "Time Submitted": new Date().toISOString(),
           "Instagram User ID": senderId,
           ...processedAnswers // Titik tiga ini (spread operator) akan mengeluarkan semua isi jawaban ke luar
