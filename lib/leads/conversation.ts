@@ -276,6 +276,7 @@ export async function handleIncomingDM(
         const answerValue = processedAnswers[key];
         if (typeof answerValue === "string" && majorCodeMap[answerValue]) {
           processedAnswers[key] = majorCodeMap[answerValue];
+          processedAnswers[`${key}_original`] = answerValue; // Simpan jawaban asli juga
         }
       }
 
