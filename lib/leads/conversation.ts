@@ -90,17 +90,18 @@ export async function handleIncomingDM(
       return;
     }
 
-    // 1. Cari Instagram Account (Pencarian DB harus pakai token yang masih terenkripsi)
+    // 1. Cari Instagram Account
     const account = await prisma.instagramAccount.findFirst({
       where: { accessToken: incomingAccessToken },
       select: { id: true, instagramId: true, accessToken: true },
     });
+    
     if (!account) {
       console.log("🔥 ERROR: Akun Instagram tidak ditemukan di database!");
       return;
     }
 
-    // ✅ DECRYPT TOKEN DENGAN PINTAR
+    // ✅ DECRYPT TOKEN
     let accessToken = "";
     try {
       accessToken = decryptToken(account.accessToken);
@@ -110,24 +111,14 @@ export async function handleIncomingDM(
       console.error("🔥 Gagal total decrypt token:", err);
       return;
     }
-    // try {
-    //   // Cek apakah token masih terenkripsi atau sudah format EAA/IG
-    //   if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
-    //     accessToken = decryptToken(accessToken);
-    //   }
-    //   accessToken = accessToken.replace(/['"]/g, '').trim();
-    //   console.log("🔥 TOKEN AMAN KE META:", accessToken.substring(0, 15) + "...");
-    // } catch (err) {
-    //   console.error("🔥 Gagal decrypt token:", err);
-    //   return; // Kalau gagal decrypt, langsung hentikan supaya tidak ngirim request ngawur ke Meta
-    // }
 
-    // 2. Cari Automation Aktif & Lead Form Nyala (YANG QUESTIONS-NYA ADA ISINYA!)
+    // 2. Cari Automation Aktif
     const automation = await prisma.automation.findFirst({
       where: { 
         instagramAccountId: account.id, 
         isActive: true, 
         isLeadFormEnabled: true,
+        isDmEnabled: true, // Pastikan fitur DM aktif
         questions: { not: Prisma.JsonNull }
       },
       orderBy: { createdAt: "desc" },
@@ -138,7 +129,7 @@ export async function handleIncomingDM(
       return;
     }
 
-    // 3. Parse Questions dengan aman
+    // 3. Parse Questions
     let questions: QuestionItem[] = [];
     try {
       if (typeof automation.questions === "string") {
@@ -155,28 +146,26 @@ export async function handleIncomingDM(
       return;
     }
 
-    // 4. Ambil / Buat record progres user (LeadResponse)
-    let lead = await (prisma as any).leadResponse.findUnique({
+    // 4. Ambil / Buat Lead Response (Aman dari duplicate/race condition)
+    let lead = await prisma.leadResponse.upsert({
       where: {
         automationId_instagramUserId: {
           automationId: automation.id,
           instagramUserId: senderId,
         },
       },
+      update: {}, // Jika sudah ada, jangan update apa-apa dulu
+      create: {
+        automationId: automation.id,
+        instagramUserId: senderId,
+        currentStepIndex: 0,
+        answers: {},
+        isCompleted: false,
+      },
     });
 
-    // JIKA USER BELUM PERNAH ADA SAMA SEKALI
-    if (!lead) {
-      lead = await (prisma as any).leadResponse.create({
-        data: {
-          automationId: automation.id,
-          instagramUserId: senderId,
-          currentStepIndex: 0,
-          answers: {},
-          isCompleted: false,
-        },
-      });
-
+    // JIKA USER BARU DIBUAT (Pertama kali masuk)
+    if (lead.currentStepIndex === 0 && !lead.isCompleted && Object.keys((lead.answers as object) || {}).length === 0) {
       let currentIndex = 0;
 
       // Flush pesan informasi awal (isCollectAnswer == false)
@@ -188,12 +177,11 @@ export async function handleIncomingDM(
         currentIndex++;
       }
 
-      await (prisma as any).leadResponse.update({
+      await prisma.leadResponse.update({
         where: { id: lead.id },
         data: { currentStepIndex: currentIndex },
       });
 
-      // Cek apakah pesan masuk adalah klik tombol opening DM
       const isClickingOpeningButton =
         automation.openingDmEnabled &&
         automation.openingDmButtonLabel &&
@@ -205,31 +193,28 @@ export async function handleIncomingDM(
       return;
     }
 
-    // JIKA USER SEBENARNYA SUDAH SELESAI (isCompleted == true)
+    // JIKA USER SUDAH SELESAI
     if (lead.isCompleted) {
-      console.log("⚠️ User ini sudah menyelesaikan form sebelumnya. Mengabaikan pesan bebas:", messageText);
-      // Opsional: Kamu bisa balasi "Halo Kak, data Kakak sebelumnya sudah kami terima. 🙏" atau diamkan saja.
+      console.log("⚠️ User ini sudah menyelesaikan form sebelumnya. Mengabaikan pesan:", messageText);
       return; 
     }
 
     // JIKA USER MEMBALAS PERTANYAAN (FLOW BERJALAN)
     let currentAnswers: Record<string, any> = {};
     if (typeof lead.answers === "string") {
-       try { currentAnswers = JSON.parse(lead.answers); } catch(e) {}
+      try { currentAnswers = JSON.parse(lead.answers); } catch(e) {}
     } else if (lead.answers && typeof lead.answers === "object") {
-       currentAnswers = { ...lead.answers };
+      currentAnswers = { ...lead.answers };
     }
 
     let stepIndex = lead.currentStepIndex;
     const currentQuestion = questions[stepIndex];
 
-    // Simpan jawaban user berdasarkan variableKey
     if (currentQuestion && currentQuestion.isCollectAnswer) {
       const key = currentQuestion.variableKey || `field_${stepIndex + 1}`;
       currentAnswers[key] = messageText;
     }
 
-    // Pindah ke step berikutnya
     stepIndex++;
 
     // Lewati pesan informasi di tengah
@@ -241,9 +226,9 @@ export async function handleIncomingDM(
       stepIndex++;
     }
 
-    // Cek apakah masih ada pertanyaan lanjutan (misal: Jurusan)
+    // Cek apakah masih ada pertanyaan lanjutan
     if (stepIndex < questions.length) {
-      await (prisma as any).leadResponse.update({
+      await prisma.leadResponse.update({
         where: { id: lead.id },
         data: {
           currentStepIndex: stepIndex,
@@ -251,11 +236,10 @@ export async function handleIncomingDM(
         },
       });
 
-      // 🚀 KIRIM PERTANYAAN BERIKUTNYA!
       await sendQuestionStep(senderId, questions[stepIndex], accessToken, account.instagramId);
     } else {
       // SEMUA SELESAI
-      await (prisma as any).leadResponse.update({
+      await prisma.leadResponse.update({
         where: { id: lead.id },
         data: {
           currentStepIndex: stepIndex,
@@ -264,7 +248,7 @@ export async function handleIncomingDM(
         },
       });
 
-      // MAPPING SEBELUM DIKIRIM WEBHOOK
+      // MAPPING JURUSAN / KODE
       const majorCodeMap: Record<string, string> = {
         "S1 Manajemen": "a00Mg00000NLp7GIAT",
         "S1 Informatika": "a00Mg00000NLnISIA1",
@@ -276,52 +260,30 @@ export async function handleIncomingDM(
         const answerValue = processedAnswers[key];
         if (typeof answerValue === "string" && majorCodeMap[answerValue]) {
           processedAnswers[key] = majorCodeMap[answerValue];
-          processedAnswers[`${key}_original`] = answerValue; // Simpan jawaban asli juga
+          processedAnswers[`${key}_original`] = answerValue;
         }
       }
 
-      // const webhookUrl = automation.webhookDestinationUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL;
-      
-      // if (webhookUrl) {
-      //   try {
-      //     const response = await fetch(webhookUrl, {
-      //       method: "POST",
-      //       headers: { "Content-Type": "application/json" },
-      //       body: JSON.stringify({
-      //         instagramUserId: senderId,
-      //         submittedAt: new Date().toISOString(),
-      //         answers: processedAnswers, 
-      //       }),
-      //     });
-
-      //     if (!response.ok) {
-      //       console.error("Gagal mengirim data ke Google Sheets:", await response.text());
-      //     } else {
-      //       console.log("✅ Data lead berhasil dikirim ke Google Sheets!");
-      //     }
-      //   } catch (err) {
-      //     console.error("Error saat fetch webhook Google Sheets:", err);
-      //   }
-      // } else {
-      //   console.warn("⚠️ Google Sheets Webhook URL belum diatur di Automation atau .env!");
-      // }
+      // 🕒 FORMAT WAKTU LOKAL (WIB / GMT+7)
+      const formattedWibTime = new Date().toLocaleString("sv-SE", {
+        timeZone: "Asia/Jakarta",
+      }).replace(" ", "T");
 
       const webhookUrlIntegrately = automation.webhookDestinationUrlIntegrately || process.env.INTEGRATELY_WEBHOOK_URL;
       
       if (webhookUrlIntegrately) {
-        // 1. Susun data rapi untuk Integrately
         const integratelyPayload = {
           "Source": "dm_instagram",
-          "Time Submitted": new Date().toISOString(),
+          "Time Submitted": formattedWibTime, // Terformat YYYY-MM-DDTHH:mm:ss
           "Instagram User ID": senderId,
-          ...processedAnswers // Titik tiga ini (spread operator) akan mengeluarkan semua isi jawaban ke luar
+          ...processedAnswers
         };
 
         try {
           const responseIntegrately = await fetch(webhookUrlIntegrately, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(integratelyPayload), // Gunakan payload yang sudah disusun
+            body: JSON.stringify(integratelyPayload),
           });
 
           if (!responseIntegrately.ok) {
@@ -333,7 +295,7 @@ export async function handleIncomingDM(
           console.error("Error saat fetch webhook Integrately:", err);
         }
       } else {
-        console.warn("⚠️ Integrately Webhook URL belum diatur di Automation atau .env!");
+        console.warn("⚠️ Integrately Webhook URL belum diatur!");
       }
 
       await sendInstagramDM(
