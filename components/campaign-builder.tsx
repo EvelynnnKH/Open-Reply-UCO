@@ -33,9 +33,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
 
-  // DM or Just Auto Reply
-  const [isDmEnabled, setIsDmEnabled] = useState(true);
-
   // Base OpenReply Campaign States
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
@@ -175,9 +172,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               }
             }
 
-            if (typeof auto.isDmEnabled === "boolean") {
-              setIsDmEnabled(auto.isDmEnabled);
-            }
             if (typeof auto.isLeadFormEnabled === "boolean") {
               setIsLeadFormEnabled(auto.isLeadFormEnabled);
             }
@@ -271,26 +265,21 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       pendingNextReel,
       postId: matchAnyPost || pendingNextReel ? null : postId,
       postUrl: matchAnyPost || pendingNextReel ? null : postUrl,
-      
-      // Flag baru untuk kontrol DM
-      isDmEnabled,
-
-      // Jika DM dimatikan, kosongkan / disable alur DM
       dmMessage: questions[0]?.label || "Lead Form DM",
-      openingDmEnabled: isDmEnabled ? openingDmEnabled : false,
-      openingDmMessage: isDmEnabled && openingDmEnabled ? openingDmMessage || null : null,
-      openingDmButtonLabel: isDmEnabled && openingDmEnabled ? openingDmButtonLabel || null : null,
+
+      openingDmEnabled,
+      openingDmMessage: openingDmEnabled ? openingDmMessage || null : null,
+      openingDmButtonLabel: openingDmEnabled ? openingDmButtonLabel || null : null,
       linkButtonLabel: linkButtonLabel || null,
 
-      requireFollow: isDmEnabled ? requireFollow : false,
-      followPromptMessage: isDmEnabled && requireFollow ? followPromptMessage || null : null,
-      followPromptButtonLabel: isDmEnabled && requireFollow ? followPromptButtonLabel || null : null,
+      requireFollow,
+      followPromptMessage: requireFollow ? followPromptMessage || null : null,
+      followPromptButtonLabel: requireFollow ? followPromptButtonLabel || null : null,
 
-      followUpEnabled: isDmEnabled ? followUpEnabled : false,
-      followUpMessage: isDmEnabled && followUpEnabled ? followUpMessage || null : null,
-      followUpDelayMinutes: isDmEnabled && followUpEnabled ? Number(followUpDelayMinutes) : 0,
+      followUpEnabled,
+      followUpMessage: followUpEnabled ? followUpMessage || null : null,
+      followUpDelayMinutes: followUpEnabled ? Number(followUpDelayMinutes) : 0,
 
-      // Public Reply tetap dikirim sesuai input user
       publicReplyEnabled,
       publicReplyMessages: publicReplyEnabled ? publicReplyMessages.filter(Boolean) : [],
 
@@ -298,8 +287,8 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       secondaryDestinationUrl: secondaryDestinationUrl || "",
       secondaryButtonLabel: secondaryButtonLabel || "",
 
-      isLeadFormEnabled: isDmEnabled ? isLeadFormEnabled : false,
-      questions: isDmEnabled && isLeadFormEnabled ? questions : [],
+      isLeadFormEnabled,
+      questions: isLeadFormEnabled ? questions : [],
       isActive: true,
     };
 
@@ -362,7 +351,6 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         {/* 1. Pengaturan Utama & Akun */}
       <div className="panel rounded p-6 space-y-4">
         <h2 className="text-base font-semibold">1. Pengaturan Umum</h2>
-        
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-xs font-medium mb-1">Nama Campaign *</label>
@@ -621,284 +609,264 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
         )}
       </div>
 
-      {/* Toggle Mode Respon DM */}
-      <div className="flex items-center justify-between border-t border-border pt-4">
-        <div>
-          <p className="text-sm font-semibold">Kirim Pesan Otomatis (DM)</p>
-          <p className="text-xs text-muted">
-            Matikan jika campaign ini HANYA untuk auto reply di kolom komentar tanpa kirim DM.
-          </p>
-        </div>
-        <input
-          type="checkbox"
-          checked={isDmEnabled}
-          onChange={(e) => setIsDmEnabled(e.target.checked)}
-          className="w-5 h-5 accent-accent cursor-pointer"
-        />
-      </div>
-        
-        {/* Panel 5 & 6 hanya tampil jika DM diaktifkan */}
-        {isDmEnabled && (
-          <>
-          {/* 5. Opening DM & Follow-Up Reminders */}
-          <div className="panel rounded p-6 space-y-4">
-            <h2 className="text-base font-semibold">5. Opening DM & Follow-Up Reminders</h2>
+      {/* 5. Opening DM & Follow-Up Reminders */}
+      <div className="panel rounded p-6 space-y-4">
+        <h2 className="text-base font-semibold">5. Opening DM & Follow-Up Reminders</h2>
 
-            {/* Opening DM */}
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <p className="text-sm font-medium">Pesan Pembuka (Opening DM)</p>
-                <p className="text-xs text-muted">Kirim sapaan awal dan tombol (Guaranteed Response) sebelum user masuk ke form pertanyaan.</p>
-              </div>
-              <input
-                type="checkbox"
-                checked={openingDmEnabled}
-                onChange={(e) => setOpeningDmEnabled(e.target.checked)}
-                className="w-5 h-5 accent-accent"
-              />
-            </div>
-
-            {openingDmEnabled && (
-              <div className="space-y-3 pl-4 border-l-2 border-accent">
-                <div>
-                  <label className="block text-xs font-medium mb-1">Teks Sapaan Awal</label>
-                  <textarea
-                    value={openingDmMessage}
-                    onChange={(e) => setOpeningDmMessage(e.target.value)}
-                    placeholder="Terima kasih sudah tertarik dengan UC Online 👋 Silakan klik tombol di bawah untuk info lebih lengkap"
-                    className="w-full rounded border border-border bg-background px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:border-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Label Tombol (Max 20 Karakter)</label>
-                  <input
-                    type="text"
-                    value={openingDmButtonLabel}
-                    onChange={(e) => setOpeningDmButtonLabel(e.target.value)}
-                    placeholder="Info Lebih Lanjut"
-                    maxLength={20}
-                    className="w-full sm:w-1/2 rounded border border-border bg-background px-3 py-1.5 text-xs focus:outline-none focus:border-accent"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Follow-Up Reminders */}
-            <div className="flex items-center justify-between pt-2">
-              <div>
-                <p className="text-sm font-medium">Follow-Up Reminders</p>
-                <p className="text-xs text-muted">Kirim pesan pengingat otomatis jika user tidak membalas DM.</p>
-              </div>
-              <input
-                type="checkbox"
-                checked={followUpEnabled}
-                onChange={(e) => setFollowUpEnabled(e.target.checked)}
-                className="w-5 h-5 accent-accent"
-              />
-            </div>
-
-            {followUpEnabled && (
-              <div className="space-y-3 pl-4 border-l-2 border-accent">
-                <div>
-                  <label className="block text-xs font-medium mb-1">Pesan Follow-Up</label>
-                  <input
-                    type="text"
-                    value={followUpMessage}
-                    onChange={(e) => setFollowUpMessage(e.target.value)}
-                    placeholder="Halo Kak, apakah ada yang bisa kami bantu mengenai info pendaftaran?"
-                    className="w-full rounded border border-border bg-background px-3 py-1.5 text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1">Waktu Tunggu (Menit)</label>
-                  <input
-                    type="number"
-                    value={followUpDelayMinutes}
-                    onChange={(e) => setFollowUpDelayMinutes(Number(e.target.value))}
-                    className="w-32 rounded border border-border bg-background px-3 py-1.5 text-xs"
-                  />
-                </div>
-              </div>
-            )}
+        {/* Opening DM */}
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <p className="text-sm font-medium">Pesan Pembuka (Opening DM)</p>
+            <p className="text-xs text-muted">Kirim sapaan awal dan tombol (Guaranteed Response) sebelum user masuk ke form pertanyaan.</p>
           </div>
-          {/* 6. Interactive Lead Form Builder (Google Form Style) */}
-          <div className="panel rounded p-6 space-y-6 border-2 border-accent/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-accent">6. Interactive Lead Form Builder</h2>
-                <p className="text-xs text-muted">
-                  Atur urutan pertanyaan dinamis. Jawaban user akan otomatis tersimpan sesuai variabelnya.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={addQuestion}
-                className="px-3 py-1.5 text-xs font-semibold bg-accent text-white rounded hover:bg-accent-hover"
-              >
-                + Tambah Pesan / Pertanyaan
-              </button>
+          <input
+            type="checkbox"
+            checked={openingDmEnabled}
+            onChange={(e) => setOpeningDmEnabled(e.target.checked)}
+            className="w-5 h-5 accent-accent"
+          />
+        </div>
+
+        {openingDmEnabled && (
+          <div className="space-y-3 pl-4 border-l-2 border-accent">
+            <div>
+              <label className="block text-xs font-medium mb-1">Teks Sapaan Awal</label>
+              <textarea
+                value={openingDmMessage}
+                onChange={(e) => setOpeningDmMessage(e.target.value)}
+                placeholder="Terima kasih sudah tertarik dengan UC Online 👋 Silakan klik tombol di bawah untuk info lebih lengkap"
+                className="w-full rounded border border-border bg-background px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:border-accent"
+              />
             </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Label Tombol (Max 20 Karakter)</label>
+              <input
+                type="text"
+                value={openingDmButtonLabel}
+                onChange={(e) => setOpeningDmButtonLabel(e.target.value)}
+                placeholder="Info Lebih Lanjut"
+                maxLength={20}
+                className="w-full sm:w-1/2 rounded border border-border bg-background px-3 py-1.5 text-xs focus:outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+        )}
 
-            <div className="space-y-4">
-              {questions.map((q, qIdx) => (
-                <div key={q.id} className="p-4 rounded border border-border bg-surface space-y-4 relative">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-accent uppercase tracking-wider">
-                      Langkah #{qIdx + 1}
-                    </span>
-                    {questions.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeQuestion(qIdx)}
-                        className="text-xs text-red-400 hover:text-red-300 font-semibold"
-                      >
-                        Hapus
-                      </button>
-                    )}
-                  </div>
+        {/* Follow-Up Reminders */}
+        <div className="flex items-center justify-between pt-2">
+          <div>
+            <p className="text-sm font-medium">Follow-Up Reminders</p>
+            <p className="text-xs text-muted">Kirim pesan pengingat otomatis jika user tidak membalas DM.</p>
+          </div>
+          <input
+            type="checkbox"
+            checked={followUpEnabled}
+            onChange={(e) => setFollowUpEnabled(e.target.checked)}
+            className="w-5 h-5 accent-accent"
+          />
+        </div>
 
-                  <div>
-                    <label className="block text-xs text-muted mb-1 font-medium">Teks Pesan / Pertanyaan</label>
+        {followUpEnabled && (
+          <div className="space-y-3 pl-4 border-l-2 border-accent">
+            <div>
+              <label className="block text-xs font-medium mb-1">Pesan Follow-Up</label>
+              <input
+                type="text"
+                value={followUpMessage}
+                onChange={(e) => setFollowUpMessage(e.target.value)}
+                placeholder="Halo Kak, apakah ada yang bisa kami bantu mengenai info pendaftaran?"
+                className="w-full rounded border border-border bg-background px-3 py-1.5 text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1">Waktu Tunggu (Menit)</label>
+              <input
+                type="number"
+                value={followUpDelayMinutes}
+                onChange={(e) => setFollowUpDelayMinutes(Number(e.target.value))}
+                className="w-32 rounded border border-border bg-background px-3 py-1.5 text-xs"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 6. Interactive Lead Form Builder (Google Form Style) */}
+        <div className="panel rounded p-6 space-y-6 border-2 border-accent/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-accent">6. Interactive Lead Form Builder</h2>
+              <p className="text-xs text-muted">
+                Atur urutan pertanyaan dinamis. Jawaban user akan otomatis tersimpan sesuai variabelnya.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={addQuestion}
+              className="px-3 py-1.5 text-xs font-semibold bg-accent text-white rounded hover:bg-accent-hover"
+            >
+              + Tambah Pesan / Pertanyaan
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {questions.map((q, qIdx) => (
+              <div key={q.id} className="p-4 rounded border border-border bg-surface space-y-4 relative">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-accent uppercase tracking-wider">
+                    Langkah #{qIdx + 1}
+                  </span>
+                  {questions.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeQuestion(qIdx)}
+                      className="text-xs text-red-400 hover:text-red-300 font-semibold"
+                    >
+                      Hapus
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs text-muted mb-1 font-medium">Teks Pesan / Pertanyaan</label>
+                  <input
+                    type="text"
+                    value={q.label}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setQuestions((prev) => {
+                        const updated = [...prev];
+                        updated[qIdx].label = val;
+                        return updated;
+                      });
+                    }}
+                    placeholder="Misal: Boleh diinfokan Nama Lengkap Kakak ?"
+                    className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  />
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 p-3 rounded bg-background border border-border text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium">
                     <input
-                      type="text"
-                      value={q.label}
-                      onChange={(e) => {
-                        const val = e.target.value;
+                      type="radio"
+                      name={`isCollect_${q.id}`}
+                      checked={!q.isCollectAnswer}
+                      onChange={() => {
                         setQuestions((prev) => {
                           const updated = [...prev];
-                          updated[qIdx].label = val;
+                          updated[qIdx].isCollectAnswer = false;
                           return updated;
                         });
                       }}
-                      placeholder="Misal: Boleh diinfokan Nama Lengkap Kakak ?"
-                      className="w-full rounded border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                      className="accent-accent"
                     />
-                  </div>
+                    Hanya Pesan Informasi (Langsung Lanjut)
+                  </label>
 
-                  <div className="flex flex-col sm:flex-row gap-4 p-3 rounded bg-background border border-border text-xs">
-                    <label className="flex items-center gap-2 cursor-pointer font-medium">
-                      <input
-                        type="radio"
-                        name={`isCollect_${q.id}`}
-                        checked={!q.isCollectAnswer}
-                        onChange={() => {
-                          setQuestions((prev) => {
-                            const updated = [...prev];
-                            updated[qIdx].isCollectAnswer = false;
-                            return updated;
-                          });
-                        }}
-                        className="accent-accent"
-                      />
-                      Hanya Pesan Informasi (Langsung Lanjut)
-                    </label>
+                  <label className="flex items-center gap-2 cursor-pointer font-medium">
+                    <input
+                      type="radio"
+                      name={`isCollect_${q.id}`}
+                      checked={q.isCollectAnswer}
+                      onChange={() => {
+                        setQuestions((prev) => {
+                          const updated = [...prev];
+                          updated[qIdx].isCollectAnswer = true;
+                          return updated;
+                        });
+                      }}
+                      className="accent-accent"
+                    />
+                    Minta Jawaban User (Simpan ke Variable)
+                  </label>
+                </div>
 
-                    <label className="flex items-center gap-2 cursor-pointer font-medium">
-                      <input
-                        type="radio"
-                        name={`isCollect_${q.id}`}
-                        checked={q.isCollectAnswer}
-                        onChange={() => {
-                          setQuestions((prev) => {
-                            const updated = [...prev];
-                            updated[qIdx].isCollectAnswer = true;
-                            return updated;
-                          });
-                        }}
-                        className="accent-accent"
-                      />
-                      Minta Jawaban User (Simpan ke Variable)
-                    </label>
-                  </div>
-
-                  {q.isCollectAnswer && (
-                    <div className="pl-4 border-l-2 border-accent space-y-3 pt-1">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <label className="block text-xs font-semibold text-muted mb-1">
-                            Simpan Jawaban ke Variable:
-                          </label>
-                          <input
-                            type="text"
-                            value={q.variableKey}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/\s+/g, "_");
-                              setQuestions((prev) => {
-                                const updated = [...prev];
-                                updated[qIdx].variableKey = val;
-                                return updated;
-                              });
-                            }}
-                            placeholder="fullName, major, age, dll"
-                            className="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-accent"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-semibold text-muted mb-1">Tipe Balasan User:</label>
-                          <div className="flex items-center gap-4 pt-1.5 text-xs">
-                            <label className="flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="radio"
-                                name={`type_${q.id}`}
-                                checked={q.type === "text"}
-                                onChange={() => updateQuestionType(qIdx, "text")}
-                              />
-                              Teks Manual
-                            </label>
-                            <label className="flex items-center gap-1.5 cursor-pointer">
-                              <input
-                                type="radio"
-                                name={`type_${q.id}`}
-                                checked={q.type === "button"}
-                                onChange={() => updateQuestionType(qIdx, "button")}
-                              />
-                              Tombol Quick Reply
-                            </label>
-                          </div>
-                        </div>
+                {q.isCollectAnswer && (
+                  <div className="pl-4 border-l-2 border-accent space-y-3 pt-1">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-muted mb-1">
+                          Simpan Jawaban ke Variable:
+                        </label>
+                        <input
+                          type="text"
+                          value={q.variableKey}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\s+/g, "_");
+                            setQuestions((prev) => {
+                              const updated = [...prev];
+                              updated[qIdx].variableKey = val;
+                              return updated;
+                            });
+                          }}
+                          placeholder="fullName, major, age, dll"
+                          className="w-full rounded border border-border bg-background px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-accent"
+                        />
                       </div>
 
-                      {q.type === "button" && (
-                        <div className="space-y-2 pt-2">
-                          <label className="block text-xs font-semibold text-muted">Daftar Pilihan Tombol:</label>
-                          {q.options.map((opt, optIdx) => (
-                            <div key={optIdx} className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                value={opt}
-                                onChange={(e) => updateOption(qIdx, optIdx, e.target.value)}
-                                placeholder={`Pilihan ${optIdx + 1}`}
-                                className="flex-1 rounded border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:border-accent"
-                              />
-                              {q.options.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => removeOption(qIdx, optIdx)}
-                                  className="text-xs text-red-400"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => addOption(qIdx)}
-                            className="text-xs text-accent hover:underline pt-1 block"
-                          >
-                            + Tambah Opsi Tombol
-                          </button>
+                      <div>
+                        <label className="block text-xs font-semibold text-muted mb-1">Tipe Balasan User:</label>
+                        <div className="flex items-center gap-4 pt-1.5 text-xs">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`type_${q.id}`}
+                              checked={q.type === "text"}
+                              onChange={() => updateQuestionType(qIdx, "text")}
+                            />
+                            Teks Manual
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`type_${q.id}`}
+                              checked={q.type === "button"}
+                              onChange={() => updateQuestionType(qIdx, "button")}
+                            />
+                            Tombol Quick Reply
+                          </label>
                         </div>
-                      )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
+
+                    {q.type === "button" && (
+                      <div className="space-y-2 pt-2">
+                        <label className="block text-xs font-semibold text-muted">Daftar Pilihan Tombol:</label>
+                        {q.options.map((opt, optIdx) => (
+                          <div key={optIdx} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={opt}
+                              onChange={(e) => updateOption(qIdx, optIdx, e.target.value)}
+                              placeholder={`Pilihan ${optIdx + 1}`}
+                              className="flex-1 rounded border border-border bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:border-accent"
+                            />
+                            {q.options.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeOption(qIdx, optIdx)}
+                                className="text-xs text-red-400"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addOption(qIdx)}
+                          className="text-xs text-accent hover:underline pt-1 block"
+                        >
+                          + Tambah Opsi Tombol
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-          </>
-        )}
+        </div>
       </form>
 
       {/* BAGIAN KANAN: Campaign Preview (HP) */}
