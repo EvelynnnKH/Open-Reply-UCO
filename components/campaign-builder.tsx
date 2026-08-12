@@ -276,7 +276,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
       isDmEnabled,
 
       // Jika DM dimatikan, kosongkan / disable alur DM
-      dmMessage: isDmEnabled ? (questions[0]?.label || "Lead Form DM") : null,
+      dmMessage: questions[0]?.label || "Lead Form DM",
       openingDmEnabled: isDmEnabled ? openingDmEnabled : false,
       openingDmMessage: isDmEnabled && openingDmEnabled ? openingDmMessage || null : null,
       openingDmButtonLabel: isDmEnabled && openingDmEnabled ? openingDmButtonLabel || null : null,

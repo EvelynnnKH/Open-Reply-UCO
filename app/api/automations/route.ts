@@ -35,7 +35,8 @@ const createAutomationSchema = z
     matchAnyPost: z.boolean().optional().default(true),
     keywords: z.array(z.string().min(1).max(50)).max(10).optional().default([]),
     matchAnyWord: z.boolean().optional().default(false),
-    dmMessage: z.string().min(1).max(1000),
+    isDmEnabled: z.boolean().optional().default(true),
+    dmMessage: z.string().max(1000).optional().nullable().default("Lead Form DM"),
 
     isLeadFormEnabled: z.boolean().optional().default(true),
     questions: z.array(questionItemSchema).optional().default([]),
@@ -101,7 +102,8 @@ const updateAutomationSchema = z.object({
   matchAnyPost: z.boolean().optional(),
   keywords: z.array(z.string().min(1).max(50)).max(10).optional(),
   matchAnyWord: z.boolean().optional(),
-  dmMessage: z.string().min(1).max(1000).optional(),
+  isDmEnabled: z.boolean().optional(),
+  dmMessage: z.string().max(1000).optional().nullable(),
 
   isLeadFormEnabled: z.boolean().optional(),
   questions: z.array(questionItemSchema).optional(),
@@ -356,7 +358,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { trackedDestinationUrl, secondaryDestinationUrl, secondaryButtonLabel } =
+  const { trackedDestinationUrl, secondaryDestinationUrl, secondaryButtonLabel, isDmEnabled } =
     parsed.data;
 
   // The primary link's button title comes from `linkButtonLabel`; the second
@@ -409,6 +411,7 @@ export async function POST(request: NextRequest) {
       matchAnyPost,
       keywords: matchAnyWord ? [] : parsed.data.keywords,
       matchAnyWord,
+      isDmEnabled: parsed.data.isDmEnabled,
       dmMessage: parsed.data.dmMessage || "Lead Form DM",
 
       isLeadFormEnabled: parsed.data.isLeadFormEnabled,
@@ -514,10 +517,12 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  // 💡 PERBAIKAN DI SINI: Keluarkan reportShareEnabled agar tidak dioper ke prisma update
   const {
     trackedDestinationUrl,
     secondaryDestinationUrl,
     secondaryButtonLabel,
+    reportShareEnabled,
     ...automationData
   } = parsed.data;
 
@@ -556,7 +561,7 @@ export async function PATCH(request: NextRequest) {
 
   const updated = await prisma.automation.update({
     where: { id: automationId },
-    data: automationData,
+    data: automationData as any,
   });
 
   // Update, create, or clear the campaign's primary tracked link when a
