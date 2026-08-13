@@ -412,7 +412,7 @@ export async function POST(request: NextRequest) {
       keywords: matchAnyWord ? [] : parsed.data.keywords,
       matchAnyWord,
       isDmEnabled: parsed.data.isDmEnabled,
-      dmMessage: parsed.data.dmMessage || "Lead Form DM",
+      dmMessage: parsed.data.isDmEnabled ? (parsed.data.dmMessage || "Lead Form DM") : "",
 
       isLeadFormEnabled: parsed.data.isLeadFormEnabled,
       questions: parsed.data.questions,
@@ -532,6 +532,11 @@ export async function PATCH(request: NextRequest) {
   if (automationData.openingDmEnabled === false) {
     automationData.openingDmMessage = null;
     automationData.openingDmButtonLabel = null;
+  }
+  if (automationData.isDmEnabled === false) {
+    automationData.dmMessage = "";
+    automationData.isLeadFormEnabled = false;
+    automationData.questions = [];
   }
   if (automationData.requireFollow === false) {
     automationData.followPromptMessage = null;
