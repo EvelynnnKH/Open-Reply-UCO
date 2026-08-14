@@ -66,6 +66,9 @@ async function sendQuestionStep(
   accessToken: string,
   instagramAccountId: string
 ) {
+  // 📝 LOG PERTANYAAN YANG SEDANG DIKIRIM KE USER
+  console.log(`❓ [LOG PERTANYAAN KELUAR] ID: ${question.id || 'N/A'} | Variable: ${question.variableKey} | Label: "${question.label}"`);
+
   const quickReplies =
     question.type === "button" && question.options
       ? question.options
@@ -110,6 +113,7 @@ export async function handleIncomingDM(
       console.error("🔥 Gagal total decrypt token:", err);
       return;
     }
+
     // try {
     //   // Cek apakah token masih terenkripsi atau sudah format EAA/IG
     //   if (!accessToken.startsWith("EAA") && !accessToken.startsWith("IG")) {
@@ -155,6 +159,8 @@ export async function handleIncomingDM(
       return;
     }
 
+    console.log(`📋 Total list pertanyaan terdaftar: ${questions.length}`);
+
     // 4. Ambil / Buat record progres user (LeadResponse)
     let lead = await (prisma as any).leadResponse.findUnique({
       where: {
@@ -167,6 +173,13 @@ export async function handleIncomingDM(
 
     // JIKA USER BELUM PERNAH ADA SAMA SEKALI
     if (!lead) {
+      console.log("🆕 Membuat data LeadResponse baru untuk user:", senderId);
+      
+      const isClickingOpeningButton =
+        automation.openingDmEnabled &&
+        automation.openingDmButtonLabel &&
+        messageText.trim().toLowerCase() === automation.openingDmButtonLabel.trim().toLowerCase();
+
       lead = await (prisma as any).leadResponse.create({
         data: {
           automationId: automation.id,
@@ -177,32 +190,30 @@ export async function handleIncomingDM(
         },
       });
 
-      let currentIndex = 0;
+      // Jika baru sekadar klik tombol Opening DM, kirim pertanyaan pertama
+      if (isClickingOpeningButton) {
+        console.log("🔘 User mengklik opening button, mengirim pertanyaan pertama...");
+        let currentIndex = 0;
+        while (
+          currentIndex < questions.length &&
+          !questions[currentIndex].isCollectAnswer
+        ) {
+          await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramId);
+          currentIndex++;
+        }
 
-      // Flush pesan informasi awal (isCollectAnswer == false)
-      while (
-        currentIndex < questions.length &&
-        !questions[currentIndex].isCollectAnswer
-      ) {
-        await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramId);
-        currentIndex++;
+        await (prisma as any).leadResponse.update({
+          where: { id: lead.id },
+          data: { currentStepIndex: currentIndex },
+        });
+
+        if (currentIndex < questions.length) {
+          await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramId);
+        }
+        return;
       }
-
-      await (prisma as any).leadResponse.update({
-        where: { id: lead.id },
-        data: { currentStepIndex: currentIndex },
-      });
-
-      // Cek apakah pesan masuk adalah klik tombol opening DM
-      const isClickingOpeningButton =
-        automation.openingDmEnabled &&
-        automation.openingDmButtonLabel &&
-        messageText.trim().toLowerCase() === automation.openingDmButtonLabel.trim().toLowerCase();
-
-      if (currentIndex < questions.length && !isClickingOpeningButton) {
-        await sendQuestionStep(senderId, questions[currentIndex], accessToken, account.instagramId);
-      }
-      return;
+      // Jika BUKAN klik opening button, artinya messageText adalah JAWABAN LANGSUNG untuk pertanyaan pertama.
+      // Flow lanjut ke bawah secara otomatis tanpa di-return!
     }
 
     // JIKA USER SEBENARNYA SUDAH SELESAI (isCompleted == true)
@@ -223,10 +234,13 @@ export async function handleIncomingDM(
     let stepIndex = lead.currentStepIndex;
     const currentQuestion = questions[stepIndex];
 
+    console.log(`📍 [PROSES JAWABAN] Step Index Saat Ini: ${stepIndex}`);
+
     // Simpan jawaban user berdasarkan variableKey
     if (currentQuestion && currentQuestion.isCollectAnswer) {
       const key = currentQuestion.variableKey || `field_${stepIndex + 1}`;
       currentAnswers[key] = messageText;
+      console.log(`📥 [LOG JAWABAN MASUK] Variable [${key}] = "${messageText}"`);
     }
 
     // Pindah ke step berikutnya
@@ -237,6 +251,7 @@ export async function handleIncomingDM(
       stepIndex < questions.length &&
       !questions[stepIndex].isCollectAnswer
     ) {
+      console.log(`ℹ️ Lewati pesan info/non-pertanyaan di step ${stepIndex}`);
       await sendQuestionStep(senderId, questions[stepIndex], accessToken, account.instagramId);
       stepIndex++;
     }
@@ -255,6 +270,7 @@ export async function handleIncomingDM(
       await sendQuestionStep(senderId, questions[stepIndex], accessToken, account.instagramId);
     } else {
       // SEMUA SELESAI
+      console.log("🏁 Semua pertanyaan telah dijawab! Menyelesaikan pengisian lead.");
       await (prisma as any).leadResponse.update({
         where: { id: lead.id },
         data: {
