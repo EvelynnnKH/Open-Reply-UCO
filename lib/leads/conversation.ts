@@ -224,6 +224,7 @@ export async function handleIncomingDM(
     }
 
     // JIKA USER MEMBALAS PERTANYAAN (FLOW BERJALAN)
+    // JIKA USER MEMBALAS PERTANYAAN (FLOW BERJALAN)
     let currentAnswers: Record<string, any> = {};
     if (typeof lead.answers === "string") {
        try { currentAnswers = JSON.parse(lead.answers); } catch(e) {}
@@ -236,8 +237,26 @@ export async function handleIncomingDM(
 
     console.log(`📍 [PROSES JAWABAN] Step Index Saat Ini: ${stepIndex}`);
 
-    // Simpan jawaban user berdasarkan variableKey
+    // ✅ TAHAP 1: VALIDASI JAWABAN (CEGAH JAWABAN NGAWUR)
     if (currentQuestion && currentQuestion.isCollectAnswer) {
+      // Jika pertanyaan tipe button, pastikan jawaban user adalah salah satu dari options
+      if (currentQuestion.type === "button" && Array.isArray(currentQuestion.options)) {
+        const isValidOption = currentQuestion.options.some(
+          (opt) => opt.trim().toLowerCase() === messageText.trim().toLowerCase()
+        );
+
+        if (!isValidOption) {
+          console.log(`⚠️ Abaikan input: "${messageText}". User harus klik tombol.`);
+          // Bot akan ignore dan berhenti memproses di sini (step tidak bertambah)
+          
+          // (Opsional) Hapus comment baris di bawah ini jika kamu mau bot membalas peringatan
+          // await sendInstagramDM(senderId, "Mohon pilih salah satu dari pilihan tombol di atas ya Kak 🙏", accessToken, account.instagramId);
+          
+          return; 
+        }
+      }
+
+      // ✅ TAHAP 2: SIMPAN JAWABAN JIKA LOLOS VALIDASI
       const key = currentQuestion.variableKey || `field_${stepIndex + 1}`;
       currentAnswers[key] = messageText;
       console.log(`📥 [LOG JAWABAN MASUK] Variable [${key}] = "${messageText}"`);
