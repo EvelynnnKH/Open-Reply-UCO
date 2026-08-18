@@ -181,14 +181,14 @@ export async function handleIncomingDM(
       },
     });
 
+    const isClickingOpeningButton =
+      automation.openingDmEnabled &&
+      automation.openingDmButtonLabel &&
+      messageText.trim().toLowerCase() === automation.openingDmButtonLabel.trim().toLowerCase();
+
     // JIKA USER BELUM PERNAH ADA SAMA SEKALI
     if (!lead) {
       console.log("🆕 Membuat data LeadResponse baru untuk user:", senderId);
-      
-      const isClickingOpeningButton =
-        automation.openingDmEnabled &&
-        automation.openingDmButtonLabel &&
-        messageText.trim().toLowerCase() === automation.openingDmButtonLabel.trim().toLowerCase();
 
       lead = await (prisma as any).leadResponse.create({
         data: {
@@ -200,10 +200,15 @@ export async function handleIncomingDM(
         },
       });
 
+      if (automation.openingDmEnabled && !isClickingOpeningButton) {
+        console.log("⏳ User mengirim pesan bebas sebelum klik opening button. Abaikan.");
+        return;
+      }
+
       // Jika baru sekadar klik tombol Opening DM, kirim pertanyaan pertama
       if (isClickingOpeningButton) {
         console.log("🔘 User mengklik opening button, mengirim pertanyaan pertama...");
-        let currentIndex = 0;
+        let currentIndex = automation.openingDmEnabled ? 0 : 0;
         while (
           currentIndex < questions.length &&
           !questions[currentIndex].isCollectAnswer
@@ -233,7 +238,11 @@ export async function handleIncomingDM(
       return; 
     }
 
-    // JIKA USER MEMBALAS PERTANYAAN (FLOW BERJALAN)
+    if (isClickingOpeningButton) {
+      console.log("⚠️ User mengklik ulang tombol opening, abaikan agar tidak mengulang dari awal.");
+      return;
+    }
+
     // JIKA USER MEMBALAS PERTANYAAN (FLOW BERJALAN)
     let currentAnswers: Record<string, any> = {};
     if (typeof lead.answers === "string") {
@@ -257,12 +266,47 @@ export async function handleIncomingDM(
 
         if (!isValidOption) {
           console.log(`⚠️ Abaikan input: "${messageText}". User harus klik tombol.`);
-          // Bot akan ignore dan berhenti memproses di sini (step tidak bertambah)
           
-          // (Opsional) Hapus comment baris di bawah ini jika kamu mau bot membalas peringatan
-          // await sendInstagramDM(senderId, "Mohon pilih salah satu dari pilihan tombol di atas ya Kak 🙏", accessToken, account.instagramId);
-          
+          const quickReplies = currentQuestion.options
+            .filter(Boolean)
+            .map((opt) => ({ title: opt, payload: opt }));
+
+          await sendInstagramDM(
+            senderId, 
+            "Maaf Kak, mohon pilih salah satu tombol pilihan di bawah ini ya 👇", 
+            accessToken, 
+            account.instagramId,
+            quickReplies
+          );
           return; 
+        }
+      }
+      else if (currentQuestion.variableKey.toLowerCase().includes("phone") || 
+        currentQuestion.variableKey.toLowerCase().includes("whatsapp") ||
+        currentQuestion.label.toLowerCase().includes("nomor") ||
+        currentQuestion.label.toLowerCase().includes("whatsapp")
+      ) {
+        const cleanPhone = messageText.replace(/[\s+\-]/g, "");
+        // Pastikan isinya murni angka semua (tidak ada alfabet seperti "S2 Manajemen")
+        const isOnlyDigits = /^\d+$/.test(cleanPhone);
+        // Panjang nomor telepon yang wajar antara 9 sampai 15 digit
+        const isValidLength = cleanPhone.length >= 9 && cleanPhone.length <= 15;
+
+        if (!isOnlyDigits || !isValidLength) {
+          console.log(`⚠️ Format nomor WhatsApp tidak valid: "${messageText}". Ditolak.`);
+          
+          await sendInstagramDM(
+            senderId, 
+            "Format nomor WhatsApp sepertinya kurang tepat Kak. Mohon masukkan nomor angka yang aktif ya (contoh: 08123456789) 🙏", 
+            accessToken, 
+            account.instagramId
+          );
+          return; // STOP! Form terkunci di step ini sampai user memasukkan nomor yang valid.
+        }
+      }
+      else if (currentQuestion.type === "text") {
+        if (messageText.startsWith("reveal:") || messageText.startsWith("followcheck:")) {
+          return;
         }
       }
 
