@@ -11,7 +11,6 @@ import { POSTBACK_JOB_NAME } from "@/lib/queue/client";
 import { Prisma } from "@/app/generated/prisma/client";
 import { handleIncomingDM } from "@/lib/leads/conversation";
 
-
 const OPENING_DM_READ_FALLBACK_DELAY_MS = 5 * 60 * 1000;
 
 export async function GET(request: NextRequest) {
@@ -34,10 +33,9 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
 
+  // ❌ BAGIAN YANG BIKIN ERROR (parseDMEvents) SUDAH AKU HAPUS DARI SINI
+
   if (!verifyWebhookSignature(rawBody, signature)) {
-    // Record the attempt so a signature mismatch is visible rather than a
-    // silent 401. This is the common symptom of FACEBOOK_APP_SECRET being
-    // set to the wrong app's secret for the webhook's signing key.
     await prisma.operationalEvent
       .create({
         data: {
@@ -79,31 +77,6 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // const entries = (payload as any)?.entry || [];
-  //   for (const entry of entries) {
-  //     const messagings = entry?.messaging || [];
-  //     for (const messagingEvent of messagings) {
-  //       if (messagingEvent.message && messagingEvent.message.text && !messagingEvent.is_echo) 
-  //       {
-  //         const senderId = messagingEvent?.sender?.id;
-  //         const recipientId = messagingEvent?.recipient?.id;
-  //         const messageText = messagingEvent?.message?.text || messagingEvent?.postback?.payload;
-
-  //         if (senderId && recipientId && messageText) {
-  //           console.log(`[Webhook] Menerima DM dari ${senderId}: "${messageText}"`);
-  //           const account = await prisma.instagramAccount.findUnique({
-  //             where: { instagramId: recipientId },
-  //             select: { accessToken: true , id: true, instagramId: true},
-  //           });
-
-  //           if (account?.accessToken) {
-  //             await handleIncomingDM(senderId, messageText, account.accessToken);
-  //           }
-  //         }
-  //       }
-  //     }
-  //   }
-
   try {
     const commentEvents = parseCommentEvents(
       payload as Parameters<typeof parseCommentEvents>[0]
@@ -140,17 +113,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ✅ TAHAP 1: EKSEKUSI JAWABAN FORM (Termasuk Klik Tombol)
     const entries = (payload as any)?.entry || [];
     for (const entry of entries) {
       const messagings = entry?.messaging || [];
       for (const messagingEvent of messagings) {
+        
         // Abaikan pesan dari bot sendiri (echo)
         if (messagingEvent?.message?.is_echo) continue;
 
         const senderId = messagingEvent?.sender?.id;
         const recipientId = messagingEvent?.recipient?.id;
         
-        // Ambil teks dari pesan biasa ATAU payload dari tombol/quick replies
+        // 🔥 INI SUDAH BENAR: Menangkap Teks Biasa ATAU Klik Tombol (Postback)
         const messageText = 
           messagingEvent?.message?.text || 
           messagingEvent?.postback?.payload ||
@@ -165,26 +140,28 @@ export async function POST(request: NextRequest) {
           });
 
           if (account?.accessToken) {
-            // Panggil state machine kamu HANYA DI SINI secara tunggal (tidak dobel)
+            // Langsung lempar teks/payload tombol ke mesin Lead Form kamu
             await handleIncomingDM(senderId, messageText, account.accessToken);
           }
         }
       }
     }
 
-    // Button taps from opening DMs → deliver the reveal message.
+    // ✅ TAHAP 2: EKSEKUSI POSTBACK (Khusus tombol "Info Lebih Lanjut")
     const postbackEvents = parsePostbackEvents(
       payload as Parameters<typeof parsePostbackEvents>[0]
     );
 
     for (const event of postbackEvents) {
-      
+      // 🚨 Mencegah bentrok dengan tombol jurusan!
+      // Kalau payload-nya mengandung pilihan jurusan, abaikan, karena sudah diurus handleIncomingDM di atas
       if (
         event.payload && 
         (event.payload.startsWith("S1 ") || event.payload.startsWith("S2 ") || event.payload.includes("jurusan"))
       ) {
-        continue; // Lewati, biarkan handleIncomingDM saja yang urus!
+        continue; 
       }
+      
       await queue.add(
         POSTBACK_JOB_NAME,
         {
@@ -194,8 +171,6 @@ export async function POST(request: NextRequest) {
           mid: event.mid,
         },
         {
-          // BullMQ forbids ":" in custom job ids, and the payload is
-          // "reveal:<id>", so build with underscores and strip any colons.
           jobId: `postback_${event.instagramAccountId}_${event.userId}_${(
             event.mid ?? event.payload
           ).replace(/:/g, "_")}`,
@@ -203,9 +178,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If a user reads the opening DM and never taps the button, deliver the
-    // same next-step DM after five minutes. The worker no-ops this delayed job
-    // if a real button tap has already delivered the reveal.
     const readEvents = parseReadEvents(
       payload as Parameters<typeof parseReadEvents>[0]
     );

@@ -63,6 +63,7 @@ interface WebhookEntry {
   messaging?: Array<{
     sender?: { id?: string };
     recipient?: { id?: string };
+    message?: { text?: string; mid?: string; is_echo?: boolean };
     postback?: { mid?: string; title?: string; payload?: string };
     read?: { watermark?: number; seq?: number };
   }>;
@@ -185,6 +186,48 @@ export function parseReadEvents(payload: WebhookPayload): WebhookReadEvent[] {
         userId,
         watermark: messaging.read.watermark,
       });
+    }
+  }
+
+  return events;
+}
+
+export interface WebhookDMMessagesEvent {
+  instagramAccountId: string;
+  userId: string;
+  messageText: string;
+}
+
+/**
+ * Parse semua DM yang masuk (Baik dari ketikan teks manual maupun dari klik tombol)
+ */
+export function parseDMEvents(payload: WebhookPayload): WebhookDMMessagesEvent[] {
+  const events: WebhookDMMessagesEvent[] = [];
+
+  if (payload.object !== "instagram") return events;
+
+  for (const entry of payload.entry ?? []) {
+    for (const messaging of entry.messaging ?? []) {
+      const userId = messaging.sender?.id;
+      const accountId = entry.id ?? messaging.recipient?.id;
+
+      if (!userId || !accountId) continue;
+      
+      // Jangan memproses pesan dari bot itu sendiri (echo)
+      if (userId === accountId) continue; 
+      if (messaging.message?.is_echo) continue;
+
+      // 🔥 2. INTI NYA DI SINI:
+      // Ambil teks jika user ngetik manual, ATAU ambil payload jika user klik tombol
+      const text = messaging.message?.text || messaging.postback?.payload;
+
+      if (text) {
+        events.push({
+          instagramAccountId: accountId,
+          userId,
+          messageText: text,
+        });
+      }
     }
   }
 
