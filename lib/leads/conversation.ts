@@ -14,7 +14,7 @@ export interface QuestionItem {
 
 // Helper internal untuk mengirim DM via Instagram Graph API (Mendukung Teks & Quick Replies)
 async function sendInstagramDM(
-  recipientId: string,
+  recipientId: string,    
   text: string,
   accessToken: string,
   instagramAccountId: string,
@@ -23,15 +23,25 @@ async function sendInstagramDM(
   try {
     console.log(`🚀 Mengirim pesan ke ${recipientId} dengan ${quickReplies ? quickReplies.length : 0} pilihan tombol...`);
 
-    const messagePayload: Record<string, unknown> = { text };
+    let messagePayload: Record<string, unknown> = { text };
 
-    // Jika ada pilihan ganda/quick replies, masukkan ke payload
+    // UBAH QUICK REPLIES MENJADI BUTTON TEMPLATE AGAR NEMPEL DI BUBBLE CHAT
     if (quickReplies && quickReplies.length > 0) {
-      messagePayload.quick_replies = quickReplies.map((qr) => ({
-        content_type: "text",
-        title: qr.title.substring(0, 20), // Batas maksimal karakter title dari Meta adalah 20!
-        payload: qr.payload,
-      }));
+      messagePayload = {
+        attachment: {
+          type: "template",
+          payload: {
+            template_type: "button",
+            text: text, // Pertanyaannya digeser masuk ke dalam template
+            // IG API Maksimal hanya mendukung 3 tombol per template!
+            buttons: quickReplies.slice(0, 3).map((qr) => ({
+              type: "postback", // Pakai postback agar jadi tombol fix
+              title: qr.title.substring(0, 20),
+              payload: qr.payload,
+            })),
+          },
+        },
+      };
     }
 
     const baseUrl = "https://graph.instagram.com/v19.0";
