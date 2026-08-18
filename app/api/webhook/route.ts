@@ -221,6 +221,7 @@ export async function POST(request: NextRequest) {
           {
             delay: OPENING_DM_READ_FALLBACK_DELAY_MS,
             jobId: `read_fallback_${event.instagramAccountId}_${event.userId}_${automation.id}`,
+            attempts: 1,
           }
         );
       }
