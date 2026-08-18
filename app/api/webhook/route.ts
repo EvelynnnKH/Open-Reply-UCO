@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
         },
         {
           jobId: `comment_${event.instagramAccountId}_${event.commentId}`,
+          attempts: 1,
         }
       );
 
